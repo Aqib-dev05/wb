@@ -1,0 +1,117 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Semantic tokens: components use these names, never raw hex, so both themes stay in sync. */
+:root {
+  --canvas: #f5f6fa;
+  --surface: #ffffff;
+  --surface-2: #eef0f6;
+  --ink: #14161f;
+  --muted: #6b7084;
+  --line: #e4e6ef;
+  --primary: #5b4bff;
+  --primary-ink: #ffffff;
+  --primary-soft: #eceaff;
+  --danger: #e5412d;
+  --shadow-card: 0 1px 2px rgb(20 22 31 / 0.05), 0 4px 16px -6px rgb(20 22 31 / 0.08);
+  --shadow-pop: 0 8px 32px -8px rgb(20 22 31 / 0.22), 0 0 0 1px rgb(20 22 31 / 0.04);
+}
+
+.dark {
+  --canvas: #0e1018;
+  --surface: #171a26;
+  --surface-2: #1f2333;
+  --ink: #eceef6;
+  --muted: #8d92a8;
+  --line: #262a3b;
+  --primary: #7a6dff;
+  --primary-ink: #0e1018;
+  --primary-soft: #252250;
+  --danger: #ff7b68;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px -6px rgb(0 0 0 / 0.5);
+  --shadow-pop: 0 8px 32px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-primary: var(--primary);
+  --color-primary-ink: var(--primary-ink);
+  --color-primary-soft: var(--primary-soft);
+  --color-danger: var(--danger);
+  --color-sticky: #ffd84d;
+  --color-mint: #2fcb8e;
+  --color-coral: #ff6b57;
+  --font-sans: 'Onest', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque', 'Onest', ui-sans-serif, sans-serif;
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Dotted board grid, shared by the dashboard thumbnails and (later) the editor surface. */
+.dot-grid {
+  background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 16%, transparent) 1px, transparent 0);
+  background-size: 18px 18px;
+}
+
+@keyframes drift-a {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(34px, 18px); }
+}
+@keyframes drift-b {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-28px, 26px); }
+}
+@keyframes drift-c {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(22px, -24px); }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
+
+.anim-drift-a { animation: drift-a 9s ease-in-out infinite; }
+.anim-drift-b { animation: drift-b 11s ease-in-out infinite; }
+.anim-drift-c { animation: drift-c 10s ease-in-out infinite; }
+.anim-pop { animation: pop-in 0.18s ease-out; }
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, color-mix(in srgb, var(--surface-2) 60%, var(--surface)) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
