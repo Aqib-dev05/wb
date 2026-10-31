@@ -1,7 +1,7 @@
 # CollabBoard
 
 Real-time collaborative whiteboard with session replay and analytics.
-**Status: Phase 2 of 6 done — editor (Fabric.js canvas, tools, undo/redo, autosave) on top of the Phase 1 foundation.**
+**Status: Phase 4 of 6 done — session recording and playback, on top of real-time collaboration (Phase 3), the editor (Phase 2) and the foundation (Phase 1).**
 
 ## Run locally
 
@@ -34,6 +34,10 @@ Failure: `{ "success": false, "error": { "code", "message", "details"? } }`
 | GET | /api/boards/:id/state | `{ objects, sequence }` live state — any member (the editor itself joins over the socket) |
 | PUT | /api/boards/:id/thumbnail | `{ thumbnail }` base64 image (≤ 400 KB) — editor or owner |
 | GET/POST/PATCH/DELETE | /api/boards/:id/members | owner manages roles (`editor`/`viewer`); removal also cuts the live socket |
+| GET | /api/boards/:id/sessions | `?page=&limit=&includeEmpty=` recorded sessions, newest first, with participants — any member |
+| GET | /api/boards/:id/sessions/:sessionId | one session plus who was present when (`presence` join/leave offsets) |
+| GET | /api/boards/:id/sessions/:sessionId/events | `?after=<seq>&limit=` the session's changes in sequence order (cursor-paged) |
+| GET | /api/boards/:id/sessions/:sessionId/state | `?t=<ms since session start>` the board as it was at that moment (`{ sequence, offsetMs, objects }`) |
 
 ## Editor
 
@@ -65,3 +69,13 @@ The editor no longer saves whole boards over REST. It joins a Socket.IO room per
 **Limits to know about.** One server process owns each active board (scaling out needs sticky routing or a Redis-backed queue). Text edits sync when committed, not per keystroke. Live drag previews are best-effort.
 
 Tests: `cd server && npm test` (state machine, validation, and real Socket.IO integration over an in-memory store).
+
+## Session recording & playback (Phase 4)
+
+**Recording.** A *session* is one continuous period in which someone is on a board. It starts when the first person joins the room and ends 30 s after the last one leaves (so a reconnect blip does not split it); its `endedAt` is the moment the last person actually left. Every accepted operation already lands in `BoardEvents`; Phase 4 tags each one with the `sessionId` (server clock, never the client's). `Sessions` hold start/end, the board sequence the session began from, and counters; `SessionParticipants` hold each user's join/leave times. If a session record cannot be written, editing carries on and the events are simply stored untagged. A crash can leave a session open: on startup it is closed from the last recorded event (`endReason: "recovered"`). A clean shutdown closes them with `shutdown`.
+
+**Playback.** The board at any moment = nearest snapshot at or before the target sequence + only the events after it (never a replay from the start). Playback reads history through the endpoints above and never touches a live room, so watching cannot change the board. The client `PlaybackEngine` (`client/src/playback/`) is plain JS: seeking asks the server for the state at that moment, playing streams events in pages and applies each when the playback clock reaches the time it was recorded. It never runs ahead of events it has not received, and ignores a seek that was superseded by a newer one. Controls: play/pause (`Space`), scrubber, 0.5× / 1× / 1.5× / 2×, `←`/`→` ±5 s, `Home` restart. Open it from the history icon in the editor top bar or "Replay history" on a dashboard card (`/board/:id/replay/:sessionId?`).
+
+**Limits to know about.** Playback shows the changes to the board (objects), not cursor movement or live drag previews — those are never stored. A session that is still live can be watched up to the moment it was opened. Text edits are recorded when committed, as in live sync. Sessions are kept forever for now (no retention policy yet). Only `eventCount` is stored per session; richer analytics come in Phase 5.
+
+Tests: `cd server && npm test` (adds session lifecycle, snapshot-based state-at-sequence, paging/seek and crash recovery) and `cd client && npm test` (playback engine with a fake clock).

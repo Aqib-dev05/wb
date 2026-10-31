@@ -13,7 +13,7 @@ export const USERS = {
 };
 export const ROLES = { ada: 'owner', bob: 'editor', vic: 'viewer' };
 
-export async function startServer({ store = createMemoryStore(), options } = {}) {
+export async function startServer({ store = createMemoryStore({ users: Object.values(USERS) }), options } = {}) {
   const rooms = new RoomManager(store, options);
   const server = http.createServer();
   const realtime = initSockets(server, {
@@ -46,6 +46,7 @@ export async function startServer({ store = createMemoryStore(), options } = {})
     },
     async close() {
       clients.forEach((c) => c.close());
+      await rooms.closeAll(); // ends open sessions and clears their timers
       realtime.io.close();
       await new Promise((r) => server.close(r));
     },

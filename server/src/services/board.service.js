@@ -3,6 +3,8 @@ import { Board } from '../models/Board.js';
 import { BoardEvent } from '../models/BoardEvent.js';
 import { BoardSnapshot } from '../models/BoardSnapshot.js';
 import { BoardMember, roleRank } from '../models/BoardMember.js';
+import { Session } from '../models/Session.js';
+import { SessionParticipant } from '../models/SessionParticipant.js';
 import { ApiError } from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/http.js';
 
@@ -127,7 +129,14 @@ export async function renameBoard(boardId, userId, title) {
 
 export async function deleteBoard(boardId, userId) {
   await assertBoardRole(boardId, userId, 'owner');
-  await Promise.all([Board.deleteOne({ _id: boardId }), BoardMember.deleteMany({ boardId }), BoardSnapshot.deleteMany({ boardId }), BoardEvent.deleteMany({ boardId })]);
+  await Promise.all([
+    Board.deleteOne({ _id: boardId }),
+    BoardMember.deleteMany({ boardId }),
+    BoardSnapshot.deleteMany({ boardId }),
+    BoardEvent.deleteMany({ boardId }),
+    Session.deleteMany({ boardId }),
+    SessionParticipant.deleteMany({ boardId }),
+  ]);
 }
 
 /** Any member may update the preview image used on the dashboard. Editors and owners only. */

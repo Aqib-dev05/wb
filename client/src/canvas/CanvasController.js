@@ -91,7 +91,8 @@ export class CanvasController {
 
   on(event, fn) {
     (this.listeners[event] ||= new Set()).add(fn);
-    return () => this.listeners[event].delete(fn);
+    // dispose() clears every listener; cleanups of other hooks may still call this afterwards.
+    return () => this.listeners[event]?.delete(fn);
   }
 
   #emit(event, payload) {

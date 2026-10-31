@@ -45,3 +45,23 @@ export const thumbnailSchema = {
       .nullable(),
   }),
 };
+
+// Session history & playback (Phase 4)
+const sessionParams = z.object({ id: objectIdParam, sessionId: objectIdParam });
+export const listSessionsSchema = {
+  params: z.object({ id: objectIdParam }),
+  query: z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    includeEmpty: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  }),
+};
+export const sessionIdSchema = { params: sessionParams };
+export const sessionEventsSchema = {
+  params: sessionParams,
+  query: z.object({
+    after: z.coerce.number().int().min(0).default(0),
+    limit: z.coerce.number().int().min(1).max(1000).default(300),
+  }),
+};
+export const sessionStateSchema = { params: sessionParams, query: z.object({ t: z.coerce.number().min(0).default(0) }) };

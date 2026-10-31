@@ -8,6 +8,7 @@ import { useAuthStore } from './store/authStore.js';
 // Route-level splitting keeps Fabric.js (Phase 2) out of the dashboard bundle.
 const DashboardPage = lazy(() => import('./pages/DashboardPage.jsx'));
 const EditorPage = lazy(() => import('./pages/EditorPage.jsx'));
+const PlaybackPage = lazy(() => import('./pages/PlaybackPage.jsx'));
 
 export default function App() {
   const init = useAuthStore((s) => s.init);
@@ -24,6 +25,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/board/:id" element={<EditorPage />} />
+            <Route path="/board/:id/replay/:sessionId?" element={<PlaybackPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

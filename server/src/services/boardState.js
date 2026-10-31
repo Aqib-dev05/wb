@@ -134,7 +134,8 @@ export function eventToOp(event) {
   const p = event.payload ?? {};
   switch (event.type) {
     case OP.CREATED:
-      return { type: OP.CREATED, object: p.object, afterId: p.afterId ?? undefined };
+      // null means "at the very bottom" and must survive the round trip; only a missing value means "on top".
+      return { type: OP.CREATED, object: p.object, afterId: p.afterId };
     case OP.UPDATED:
       return { type: OP.UPDATED, id: event.objectId, patch: p.patch };
     case OP.REORDERED:

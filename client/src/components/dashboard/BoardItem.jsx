@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { MoreHorizontal, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2, ExternalLink, History } from 'lucide-react';
 import { timeAgo } from '../../utils/format.js';
 import { AvatarStack } from '../ui/Avatar.jsx';
 import { IconButton } from '../ui/Button.jsx';
@@ -10,6 +10,7 @@ function useBoardMenu(board, { onRename, onDelete }) {
   const navigate = useNavigate();
   return [
     { label: 'Open', icon: ExternalLink, onSelect: () => navigate(`/board/${board.id}`) },
+    { label: 'Replay history', icon: History, onSelect: () => navigate(`/board/${board.id}/replay`) },
     { label: 'Rename', icon: Pencil, onSelect: () => onRename(board), hidden: board.role === 'viewer' },
     { label: 'Delete', icon: Trash2, onSelect: () => onDelete(board), danger: true, hidden: board.role !== 'owner' },
   ];

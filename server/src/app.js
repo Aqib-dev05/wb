@@ -11,6 +11,7 @@ import boardRoutes from './routes/board.routes.js';
 export function createApp({ rooms } = {}) {
   const app = express();
   app.locals.rooms = rooms; // used by REST handlers that need the live board state
+  app.locals.store = rooms?.store; // read-only history/playback queries go through the same store
 
   app.set('trust proxy', 1);
   app.use(helmet());

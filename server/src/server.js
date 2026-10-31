@@ -12,6 +12,10 @@ import { initSockets } from './sockets/index.js';
 async function main() {
   await connectDB();
 
+  // A crash can leave sessions open; their events are intact, so close them before serving traffic.
+  const repaired = await mongoStore.recoverOpenSessions();
+  if (repaired) console.log(`Closed ${repaired} session(s) left open by the previous run`);
+
   const rooms = new RoomManager(mongoStore);
   const app = createApp({ rooms });
   const server = http.createServer(app);
@@ -38,7 +42,7 @@ async function main() {
 
   const shutdown = async (signal) => {
     console.log(`${signal} received, shutting down`);
-    for (const room of rooms.rooms.values()) await rooms.flush(room); // persist snapshots before exit
+    await rooms.closeAll(); // persist snapshots and close open sessions before exit
     server.close(async () => {
       await disconnectDB();
       process.exit(0);

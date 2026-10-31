@@ -60,7 +60,7 @@ export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrig
       if (!boards.delete(boardId)) return;
       socket.leave(roomName(boardId));
       const room = rooms.rooms.get(boardId);
-      if (room?.removePresence(user.id, socket.id)) socket.to(roomName(boardId)).emit('user:left', { boardId, userId: user.id });
+      if (room && rooms.exit(room, user.id, socket.id)) socket.to(roomName(boardId)).emit('user:left', { boardId, userId: user.id });
       if (room) rooms.release(room);
     };
 
@@ -79,7 +79,7 @@ export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrig
 
         boards.set(boardId, role);
         socket.join(roomName(boardId));
-        if (joined.room.addPresence(user, socket.id)) socket.to(roomName(boardId)).emit('user:joined', { boardId, user });
+        if (rooms.enter(joined.room, user, socket.id)) socket.to(roomName(boardId)).emit('user:joined', { boardId, user });
 
         const { room, ...snapshot } = joined;
         ack?.({ ok: true, role, you: user, participants: room.participants(), ...snapshot });
@@ -149,7 +149,7 @@ export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrig
         s.leave(roomName(boardId));
         memberships.get(s.id)?.delete(boardId); // without this the socket could still submit ops
         const room = rooms.rooms.get(String(boardId));
-        if (room?.removePresence(userId, s.id)) io.to(roomName(boardId)).emit('user:left', { boardId, userId });
+        if (room && rooms.exit(room, userId, s.id)) io.to(roomName(boardId)).emit('user:left', { boardId, userId });
         if (room) rooms.release(room);
       }
     },

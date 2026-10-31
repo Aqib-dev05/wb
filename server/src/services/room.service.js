@@ -14,6 +14,11 @@ class Room {
     this.flushTimer = null;
     this.evictTimer = null;
     this.lastEditor = null;
+    // Recording (Phase 4). `session` is the open session or null; see RoomManager.enter/exit.
+    this.session = null;
+    this.participantRecords = new Map(); // userId -> Promise<participantRowId | null>
+    this.endTimer = null;
+    this.emptiedAt = null;
   }
 
   get sequence() {
@@ -52,9 +57,9 @@ class Room {
  * mean routing each board to one owner process (sticky sessions) or a Redis-backed adapter.
  */
 export class RoomManager {
-  constructor(store, { snapshotEvery = 200, idleFlushMs = 15_000, evictAfterMs = 60_000, recentLimit = 2_000, batchMemory = 500 } = {}) {
+  constructor(store, { snapshotEvery = 200, idleFlushMs = 15_000, evictAfterMs = 60_000, recentLimit = 2_000, batchMemory = 500, sessionGraceMs = 30_000 } = {}) {
     this.store = store;
-    this.options = { snapshotEvery, idleFlushMs, evictAfterMs, recentLimit, batchMemory };
+    this.options = { snapshotEvery, idleFlushMs, evictAfterMs, recentLimit, batchMemory, sessionGraceMs };
     this.loading = new Map(); // boardId -> Promise<Room>
     this.rooms = new Map(); // boardId -> Room (loaded)
   }
@@ -110,6 +115,101 @@ export class RoomManager {
     return { room, mode: 'full', objects: room.state.toObjects(), sequence: room.sequence, knownBatchIds };
   }
 
+  /* ───────────── presence & sessions ───────────── */
+
+  /**
+   * Registers a connection in the room. Starts a session if the room had none (or cancels the
+   * pending end of one, when someone comes back within the grace period) and records the user's
+   * arrival. Synchronous on purpose: callers rely on presence being set when this returns.
+   * Returns true if this is the user's first connection (=> announce user:joined).
+   */
+  enter(room, user, socketId) {
+    const isNew = room.addPresence(user, socketId);
+    clearTimeout(room.endTimer);
+    room.endTimer = null;
+    room.emptiedAt = null;
+    if (!room.session) this.#beginSession(room);
+    if (isNew) this.#recordArrival(room, user.id, new Date());
+    return isNew;
+  }
+
+  /** Counterpart of enter(). Returns true if that was the user's last connection (=> announce user:left). */
+  exit(room, userId, socketId) {
+    const now = new Date();
+    const gone = room.removePresence(userId, socketId);
+    if (gone) this.#recordDeparture(room, userId, now);
+    if (room.presence.size === 0 && room.session && !room.endTimer) {
+      room.emptiedAt = now; // the session ends when the last person left, not when the grace period runs out
+      room.endTimer = setTimeout(() => this.#endSession(room, 'idle', now), this.options.sessionGraceMs);
+      room.endTimer.unref?.();
+    }
+    return gone;
+  }
+
+  #beginSession(room) {
+    const startedAt = new Date();
+    const session = { id: null, failed: false, startedAt, startSequence: room.sequence, eventCount: 0, lastEventAt: null, ready: null };
+    session.ready = this.store
+      .createSession({ boardId: room.boardId, startedAt, startSequence: room.sequence })
+      .then((doc) => {
+        session.id = doc.id;
+        return session;
+      })
+      .catch((err) => {
+        // Recording must never take the live board down: events still persist, just untagged.
+        session.failed = true;
+        console.error('Could not create session record:', err);
+        return session;
+      });
+    room.session = session;
+  }
+
+  #recordArrival(room, userId, joinedAt) {
+    const session = room.session;
+    const row = session.ready.then((s) => (s.failed ? null : this.store.addParticipant({ sessionId: s.id, boardId: room.boardId, userId, joinedAt })));
+    room.participantRecords.set(userId, row.catch((err) => (console.error('Could not record participant:', err), null)));
+  }
+
+  #recordDeparture(room, userId, leftAt) {
+    const row = room.participantRecords.get(userId);
+    if (!row) return Promise.resolve();
+    room.participantRecords.delete(userId);
+    return row.then((id) => id && this.store.closeParticipant(id, leftAt)).catch((err) => console.error('Could not close participant:', err));
+  }
+
+  /** Closes the open session: remaining participants leave at `endedAt`, then counters are stored. */
+  async #endSession(room, reason, endedAt = new Date()) {
+    const session = room.session;
+    if (!session) return;
+    room.session = null;
+    clearTimeout(room.endTimer);
+    room.endTimer = null;
+    await Promise.all([...room.participantRecords.keys()].map((userId) => this.#recordDeparture(room, userId, endedAt)));
+    await room.queue; // let batches already accepted finish so the counters are complete
+    await session.ready;
+    if (session.failed) return;
+    try {
+      await this.store.endSession(session.id, {
+        endedAt,
+        endReason: reason,
+        endSequence: room.sequence,
+        eventCount: session.eventCount,
+        lastEventAt: session.lastEventAt,
+      });
+    } catch (err) {
+      console.error('Could not close session record:', err); // startup recovery repairs it from the events
+    }
+  }
+
+  /** Clean shutdown: snapshot every board and close every open session. */
+  async closeAll() {
+    for (const room of this.rooms.values()) {
+      clearTimeout(room.endTimer);
+      await this.flush(room);
+      await this.#endSession(room, 'shutdown');
+    }
+  }
+
   /**
    * Enqueues a batch. MUST be called synchronously from the socket handler (no awaits before it)
    * so batches from one socket enter the queue in the order they were sent.
@@ -138,12 +238,16 @@ export class RoomManager {
       return ack({ ok: true, ...result });
     }
 
+    const session = room.session ? await room.session.ready : null;
+    const sessionId = session && !session.failed ? session.id : null;
+
     let start;
+    let createdAt;
     try {
       start = await this.store.allocateSequence(room.boardId, accepted.length, user.id);
-      const createdAt = new Date();
+      createdAt = new Date();
       await this.store.insertEvents(
-        accepted.map((op, i) => ({ boardId: room.boardId, sequence: start + i, ...opToEvent(op), userId: user.id, batchId, createdAt }))
+        accepted.map((op, i) => ({ boardId: room.boardId, sequence: start + i, ...opToEvent(op), userId: user.id, batchId, sessionId, createdAt }))
       );
     } catch (err) {
       console.error('Persisting operations failed:', err);
@@ -156,6 +260,11 @@ export class RoomManager {
     room.state.sequence = start + accepted.length - 1;
     for (const op of applied) room.recent.push({ seq: op.seq, userId: user.id, batchId, op });
     if (room.recent.length > this.options.recentLimit) room.recent.splice(0, room.recent.length - this.options.recentLimit);
+
+    if (session) {
+      session.eventCount += accepted.length;
+      session.lastEventAt = createdAt;
+    }
 
     const result = { seqStart: start, seqEnd: room.sequence, accepted: accepted.length, rejected };
     this.#remember(room, batchKey, result);
@@ -198,6 +307,7 @@ export class RoomManager {
     clearTimeout(room.evictTimer);
     room.evictTimer = setTimeout(() => {
       if (room.presence.size > 0) return;
+      this.#endSession(room, 'idle', room.emptiedAt ?? new Date()); // no-op when the grace timer already ended it
       this.rooms.delete(room.boardId);
       this.loading.delete(room.boardId);
     }, this.options.evictAfterMs);
@@ -211,6 +321,8 @@ export class RoomManager {
     if (room) {
       clearTimeout(room.flushTimer);
       clearTimeout(room.evictTimer);
+      clearTimeout(room.endTimer);
+      room.session = null; // the board's data (sessions included) is being deleted by the caller
     }
     this.rooms.delete(id);
     this.loading.delete(id);
