@@ -18,8 +18,9 @@ export function CanvasStage({ hostRef, controller }) {
   }, [controller, hostRef]);
 
   return (
-    <div
+    <main
       ref={hostRef}
+      aria-label="Board canvas"
       className="absolute inset-0 touch-none overflow-hidden"
       style={{
         backgroundColor: PAPER,

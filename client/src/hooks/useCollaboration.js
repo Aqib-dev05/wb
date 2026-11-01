@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SyncSession } from '../socket/SyncSession.js';
 import { boardService } from '../services/board.service.js';
+import { useUiStore } from '../store/uiStore.js';
 import { useEditorStore } from '../store/editorStore.js';
 
 const THUMBNAIL_IDLE_MS = 8000;
@@ -24,6 +25,7 @@ export function useCollaboration(controller, boardId, { onRole } = {}) {
     const s = new SyncSession(boardId, controller);
     setSession(s);
 
+    let lastToast = { message: null, at: 0 };
     let thumbTimer = null;
     let thumbDirty = false;
     const saveThumbnail = async () => {
@@ -47,7 +49,14 @@ export function useCollaboration(controller, boardId, { onRole } = {}) {
       s.on('presence', (list) => setParticipants(list)),
       s.on('loaded', () => { controller.zoomToFit(); setLoaded(true); }),
       s.on('role', (role) => roleRef.current?.(role)),
-      s.on('error', (message) => useEditorStore.getState().setSync({ lastError: message })),
+      s.on('error', (message) => {
+        useEditorStore.getState().setSync({ lastError: message });
+        // Tell the person, but not every 1.5 s while a failing save keeps retrying.
+        const now = Date.now();
+        if (lastToast.message === message && now - lastToast.at < 5000) return;
+        lastToast = { message, at: now };
+        useUiStore.getState().toast(message, 'error');
+      }),
       s.on('kicked', (message) => setFailure({ kind: 'kicked', message })),
       s.on('deleted', (message) => setFailure({ kind: 'deleted', message })),
       controller.on('change', touchThumbnail),

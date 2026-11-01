@@ -1,4 +1,4 @@
-import { BoardState, eventToOp, opToEvent } from './boardState.js';
+import { BoardState, MAX_BOARD_BYTES, eventToOp, opToEvent } from './boardState.js';
 
 const key = (userId, batchId) => `${userId}:${batchId}`;
 
@@ -57,9 +57,9 @@ class Room {
  * mean routing each board to one owner process (sticky sessions) or a Redis-backed adapter.
  */
 export class RoomManager {
-  constructor(store, { snapshotEvery = 200, idleFlushMs = 15_000, evictAfterMs = 60_000, recentLimit = 2_000, batchMemory = 500, sessionGraceMs = 30_000 } = {}) {
+  constructor(store, { snapshotEvery = 200, idleFlushMs = 15_000, evictAfterMs = 60_000, recentLimit = 2_000, batchMemory = 500, sessionGraceMs = 30_000, maxBoardBytes = MAX_BOARD_BYTES, snapshotRetryMs = 30_000 } = {}) {
     this.store = store;
-    this.options = { snapshotEvery, idleFlushMs, evictAfterMs, recentLimit, batchMemory, sessionGraceMs };
+    this.options = { snapshotEvery, idleFlushMs, evictAfterMs, recentLimit, batchMemory, sessionGraceMs, maxBoardBytes, snapshotRetryMs };
     this.loading = new Map(); // boardId -> Promise<Room>
     this.rooms = new Map(); // boardId -> Room (loaded)
   }
@@ -231,7 +231,7 @@ export class RoomManager {
     const known = room.recentBatches.get(batchKey);
     if (known) return ack({ ok: true, duplicate: true, ...known });
 
-    const { accepted, rejected } = room.state.plan(ops);
+    const { accepted, rejected } = room.state.plan(ops, { maxBytes: this.options.maxBoardBytes });
     if (!accepted.length) {
       const result = { seqStart: null, seqEnd: null, accepted: 0, rejected };
       this.#remember(room, batchKey, result);
@@ -281,7 +281,8 @@ export class RoomManager {
   #noteWrites(room, count, userId) {
     room.eventsSinceSnapshot += count;
     room.lastEditor = userId;
-    if (room.eventsSinceSnapshot >= this.options.snapshotEvery) return void this.flush(room);
+    // After a failed snapshot, wait before trying again: every attempt copies the whole board.
+    if (room.eventsSinceSnapshot >= this.options.snapshotEvery && Date.now() >= (room.snapshotRetryAt ?? 0)) return void this.flush(room);
     if (!room.flushTimer) room.flushTimer = setTimeout(() => this.flush(room), this.options.idleFlushMs);
   }
 
@@ -294,8 +295,10 @@ export class RoomManager {
     room.eventsSinceSnapshot = 0;
     try {
       await this.store.saveSnapshot({ boardId: room.boardId, sequence: room.sequence, objects: structuredClone(room.state.toObjects()), savedBy: room.lastEditor });
+      room.snapshotRetryAt = 0;
     } catch (err) {
-      room.eventsSinceSnapshot += pending; // try again on the next write or idle flush
+      room.eventsSinceSnapshot += pending; // try again on a later write or idle flush
+      room.snapshotRetryAt = Date.now() + this.options.snapshotRetryMs;
       console.error('Snapshot failed:', err);
     }
   }

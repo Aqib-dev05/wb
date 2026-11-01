@@ -7,6 +7,7 @@ import { cn } from '../../utils/format.js';
 import { Avatar, AvatarStack } from '../ui/Avatar.jsx';
 import { Button, IconButton } from '../ui/Button.jsx';
 import { ThemeToggle } from '../ui/ThemeToggle.jsx';
+import { ExportMenu } from './ExportMenu.jsx';
 
 function SyncStatus({ readOnly }) {
   const { status, pending } = useEditorStore((s) => s.sync);
@@ -57,7 +58,7 @@ function TitleField({ title, editable, onRename }) {
   );
 }
 
-export function TopBar({ board, readOnly, onRename, onShare }) {
+export function TopBar({ board, controller, readOnly, onRename, onShare }) {
   const participants = useEditorStore((s) => s.participants);
   const user = useAuthStore((s) => s.user);
   const panelOpen = useEditorStore((s) => s.panelOpen);
@@ -82,6 +83,7 @@ export function TopBar({ board, readOnly, onRename, onShare }) {
         <Link to={`/board/${board.id}/analytics`} aria-label="Board analytics" title="Board analytics" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink">
           <BarChart3 size={18} />
         </Link>
+        <ExportMenu controller={controller} title={board.title} />
         <Button size="sm" icon={Share2} onClick={onShare}>Share</Button>
         <ThemeToggle />
         <IconButton label={panelOpen ? 'Hide properties' : 'Show properties'} icon={PanelRight} active={panelOpen} onClick={togglePanel} />

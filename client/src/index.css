@@ -8,7 +8,7 @@
   --surface: #ffffff;
   --surface-2: #eef0f6;
   --ink: #14161f;
-  --muted: #6b7084;
+  --muted: #646979; /* 4.6:1 on the tinted surfaces (was #6b7084: 4.2:1) */
   --line: #e4e6ef;
   --primary: #5b4bff;
   --primary-ink: #ffffff;
@@ -25,7 +25,7 @@
   --ink: #eceef6;
   --muted: #8d92a8;
   --line: #262a3b;
-  --primary: #7a6dff;
+  --primary: #8f85ff; /* text on --primary-soft needs 4.5:1 (was #7a6dff: 3.8:1) */
   --primary-ink: #0e1018;
   --primary-soft: #252250;
   --danger: #ff7b68;

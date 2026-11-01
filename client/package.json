@@ -13,6 +13,7 @@
   "dependencies": {
     "clsx": "^2.1.1",
     "fabric": "^7.4.0",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.65.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

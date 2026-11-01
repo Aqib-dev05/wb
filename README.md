@@ -1,7 +1,7 @@
 # CollabBoard
 
 Real-time collaborative whiteboard with session replay and analytics.
-**Status: Phase 5 of 6 done — analytics (Recharts dashboard + canvas heatmap) on top of session recording/playback (Phase 4), real-time collaboration (Phase 3), the editor (Phase 2) and the foundation (Phase 1).**
+**Status: Phase 6 of 6 done — export, performance and accessibility pass, on top of analytics (Recharts dashboard + canvas heatmap), session recording/playback (Phase 4), real-time collaboration (Phase 3), the editor (Phase 2) and the foundation (Phase 1).**
 
 ## Run locally
 
@@ -96,3 +96,17 @@ Open it from the bar-chart icon in the editor top bar or "Analytics" on a dashbo
 **Limits to know about.** The daily charts cover 7-60 days (the series is kept for 90); everything else is whole history. The viewer's *current* UTC offset is applied to the whole period, so days across a daylight-saving change can be off by an hour. A rebuild reads the board's whole event log, so the first request on a very large, never-analysed board is slow. Analytics are per board; there is no cross-board overview yet. Sessions with no edits are included in session counts.
 
 Tests: `cd server && npm test` now also covers the reducer (10 tests on hand-computed fixtures) and the service (timezones including +5:30/+5:45, zero-filled days, sessions, caching, paging, real-socket events).
+
+## Export, performance & accessibility (Phase 6)
+
+**Export.** The download icon in the editor top bar exports the *whole board* (not just what is on screen) as PNG, transparent PNG or PDF. The image is cropped to the content plus 40 px of paper and rendered at 2x. Browsers cap canvas size (iOS Safari: 16.7 million pixels), so the scale is lowered for very large boards and the toast says what size you got. PDF is one page the size of the content with the rendered image embedded (so text is not selectable in the PDF); jsPDF is loaded only when you export a PDF. Viewers can export too. Exporting an empty board says so instead of producing a blank file.
+
+**Performance.** Measured in Chromium with software rendering (no GPU), boards of 500 / 2,000 / 5,000 mixed shapes and scribbles, whole board in view: a pan frame took 123 / 533 / 1,432 ms with Fabric's per-object bitmap cache on and 4 / 18 / 40 ms with it off, so `objectCaching` is off for all objects (long scribbles measured the same way). Export of 5,000 objects went from 2.3 s to 70 ms. Still slow-ish at 5,000 objects: applying them in one go (0.9 s) and every local edit (the commit diffs the whole board: 100 ms at 5,000, 30 ms at 2,000). Server side: analytics over 50,000 events took 180 ms, a full replay of 60,000 events 0.9 s (recovery never does this: it starts from the latest snapshot).
+
+**Board size limit.** A board's snapshot is one MongoDB document (16 MB limit), and BSON is about 2.2x the JSON size for stroke data. Without a limit, a very large drawing board would silently stop being snapshotted and every restart would replay a growing event log. The server now tracks the estimated BSON size (`bsonSize.js`, tested against the real BSON library) and refuses *new content* above 12 MB with reason `board_full`; deleting and moving still work, and the client shows "This board is full". Failed snapshots are retried at most every 30 s instead of on every write.
+
+**Accessibility.** Checked with axe-core (WCAG 2.1 A/AA + best practices) on the editor, replay, analytics and dashboard shell in light and dark: 0 violations after fixing two colour tokens (muted text 4.2:1 and brand text in dark mode 3.8:1, both now above 4.5:1) and adding a landmark for the canvas. Menus follow the menu-button pattern (arrow keys, Home/End, Escape returns focus); dialogs move focus in, keep Tab inside and restore focus on close. Board shortcuts are ignored inside menus and dialogs (arrow keys used to nudge the selected object while navigating a menu). Sync errors (failed save, change not accepted) used to be stored but never shown; they now appear as a toast. Axe cannot judge everything: the canvas itself is a pointer-driven drawing surface and has no keyboard drawing mode, and screen-reader use of the board content is not supported.
+
+**Not verified.** Everything Mongo-backed (Phases 4-6 queries, `board_full` against a real 16 MB document) has not run against a live MongoDB. Performance numbers come from a headless Chromium without a GPU; real devices will differ (relative differences are the useful part). No real-device or screen-reader testing.
+
+Tests: server 56 (8 new: BSON size vs the real library, byte tracking, `board_full`, snapshot back-off), client 19 (6 new: export sizing and file names).

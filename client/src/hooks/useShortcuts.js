@@ -7,8 +7,20 @@ export function useShortcuts(controller, readOnly) {
   useEffect(() => {
     if (!controller) return undefined;
 
+    let pointerMode = false;
+    const onPointerDown = () => { pointerMode = true; };
+    window.addEventListener('pointerdown', onPointerDown, true);
+
     const onKeyDown = (e) => {
       if (isTyping(e.target)) return;
+      // Keys inside an open menu or dialog belong to it (arrows move between items, Delete must not erase the board).
+      if (e.target instanceof HTMLElement && e.target.closest('[role="menu"], [role="dialog"]')) return;
+      // Space on a button someone reached with the keyboard activates it. After a mouse click the button is
+      // focused too, but then Space should still pan. (:focus-visible cannot tell them apart: the browser
+      // flips it on at this very keydown, so we remember whether the last input was a pointer.)
+      const wasPointer = pointerMode;
+      if (e.code !== 'Space') pointerMode = false;
+      if (e.code === 'Space' && !wasPointer && e.target instanceof HTMLElement && e.target.matches('button, a, [role="button"]')) return;
       const mod = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
 
@@ -56,6 +68,7 @@ export function useShortcuts(controller, readOnly) {
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onBlur);
     return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);

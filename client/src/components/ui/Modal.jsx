@@ -5,20 +5,36 @@ import { Input } from './Input.jsx';
 
 export function Modal({ title, onClose, children, footer }) {
   const ref = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose();
-    document.addEventListener('keydown', onKey);
+    const dialog = ref.current;
     const prev = document.activeElement;
+    const focusable = () => [...dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter((el) => !el.disabled && el.offsetParent !== null);
+    // Move focus into the dialog (unless a field inside already took it via autoFocus).
+    if (!dialog.contains(document.activeElement)) (focusable()[0] ?? dialog).focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') return closeRef.current();
+      if (e.key !== 'Tab') return;
+      // Keep Tab inside the dialog: it is modal, the page behind must not be reachable.
+      const items = focusable();
+      if (!items.length) return e.preventDefault();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
       prev?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={title}>
       <div className="absolute inset-0 bg-ink/40 backdrop-blur-[2px]" onMouseDown={onClose} />
-      <div ref={ref} className="anim-pop relative w-full max-w-md rounded-2xl bg-surface p-6 shadow-pop">
+      <div ref={ref} tabIndex={-1} className="anim-pop relative outline-none w-full max-w-md rounded-2xl bg-surface p-6 shadow-pop">
         <div className="mb-4 flex items-start justify-between gap-4">
           <h2 className="font-display text-xl font-semibold tracking-tight">{title}</h2>
           <IconButton label="Close" icon={X} onClick={onClose} className="-mr-2 -mt-1" />

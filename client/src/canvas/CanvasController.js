@@ -1,5 +1,6 @@
 import { ActiveSelection, Canvas, FabricObject, IText, PencilBrush, Point, util } from 'fabric';
 import { CAPS, DEFAULTS, FONT, PAPER, PROPS, SHAPE_TOOLS, STICKY_COLORS, ZOOM } from './constants.js';
+import { planExport } from './exportPlan.js';
 import { uid } from './ids.js';
 import { OpsHistory } from './opsHistory.js';
 import { ShadowState } from './shadow.js';
@@ -17,6 +18,10 @@ Object.assign(FabricObject.ownDefaults, {
   borderColor: '#5B4BFF',
   borderScaleFactor: 1.5,
   padding: 4,
+  // Fabric caches every object into its own bitmap. Measured in Chromium (software rendering,
+  // 2000 simple shapes, whole board in view): 586 ms per pan frame cached vs 27 ms uncached; long
+  // scribbles showed the same (33 vs 7.5 ms). Shapes here are cheap vector paths, so draw directly.
+  objectCaching: false,
 });
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
@@ -699,6 +704,29 @@ export class CanvasController {
         multiplier: width / w,
         enableRetinaScaling: false,
       });
+    } finally {
+      this.canvas.backgroundColor = previous;
+      this.canvas.setViewportTransform(vpt);
+    }
+  }
+
+  /**
+   * Renders all content (not just what is on screen) to a new canvas element, at `scale` pixels per
+   * scene pixel, lowered if the browser could not allocate it (see exportPlan). Null if the board is
+   * empty. Works under an identity viewport for the same reason as thumbnail(); the real viewport is
+   * restored even if rendering throws.
+   */
+  renderExport({ scale = 2, transparent = false } = {}) {
+    const b = this.#contentBounds();
+    if (!b) return null;
+    const plan = planExport(b, { scale });
+    const previous = this.canvas.backgroundColor;
+    const vpt = [...this.canvas.viewportTransform];
+    this.canvas.backgroundColor = transparent ? '' : PAPER;
+    this.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    try {
+      const canvas = this.canvas.toCanvasElement(plan.multiplier, { left: plan.left, top: plan.top, width: plan.width, height: plan.height });
+      return { canvas, plan };
     } finally {
       this.canvas.backgroundColor = previous;
       this.canvas.setViewportTransform(vpt);

@@ -268,7 +268,10 @@ export class SyncSession {
     this.#emit('pending', this.pending.length);
     if (res.seqEnd != null) this.lastSeq = Math.max(this.lastSeq, res.seqEnd);
     // Some of our ops no longer apply (e.g. the object was deleted by someone else): converge on server state.
-    if (res.rejected?.length) this.#resync({ full: true });
+    if (res.rejected?.length) {
+      if (res.rejected.some((r) => r.reason === 'board_full')) this.#emit('error', 'This board is full, so your last change was not saved. Delete some content to make room.');
+      this.#resync({ full: true });
+    }
   }
 
   #sendCursor({ x, y }) {

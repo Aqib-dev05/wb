@@ -63,7 +63,7 @@ function Editor({ initialBoard }) {
       <RemoteCursors controller={controller} session={session} />
       {!loaded && <div className="absolute inset-0 z-30 flex items-center justify-center bg-canvas/70" role="status" aria-label="Loading board"><div className="skeleton h-5 w-40 rounded" /></div>}
       <div className="pointer-events-none absolute inset-0">
-        <TopBar board={board} readOnly={readOnly} onRename={rename} onShare={() => setSharing(true)} />
+        <TopBar board={board} controller={controller} readOnly={readOnly} onRename={rename} onShare={() => setSharing(true)} />
         <ToolPalette controller={controller} readOnly={readOnly} />
         <PropertiesPanel controller={controller} board={board} readOnly={readOnly} />
         <BottomBar controller={controller} readOnly={readOnly} />
