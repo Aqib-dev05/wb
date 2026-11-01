@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { AnalyticsAggregate } from '../models/AnalyticsAggregate.js';
 import { Board } from '../models/Board.js';
 import { BoardEvent } from '../models/BoardEvent.js';
 import { BoardSnapshot } from '../models/BoardSnapshot.js';
@@ -64,6 +65,7 @@ export const mongoStore = {
       BoardSnapshot.deleteMany({ boardId }),
       Session.deleteMany({ boardId }),
       SessionParticipant.deleteMany({ boardId }),
+      AnalyticsAggregate.deleteMany({ boardId }),
     ]),
 
   /* ───────────── sessions (written by RoomManager) ───────────── */
@@ -132,6 +134,50 @@ export const mongoStore = {
   /** Events with afterSequence < sequence <= uptoSequence, ascending. */
   findEventsBetween: (boardId, afterSequence, uptoSequence) =>
     BoardEvent.find({ boardId, sequence: { $gt: afterSequence, $lte: uptoSequence } }).sort({ sequence: 1 }).lean(),
+
+  /* ───────────── analytics reads (analytics.service) ───────────── */
+
+  /** The board's current sequence, or null if the board does not exist. */
+  async getBoardSequence(boardId) {
+    const board = await Board.findById(boardId).select('sequence').lean();
+    return board ? board.sequence ?? 0 : null;
+  },
+
+  /** Events with afterSequence < sequence <= upToSequence, ascending. Only the fields the reducer reads (big path data stays in the database). */
+  listEventsForAnalytics: (boardId, afterSequence, upToSequence, limit) =>
+    BoardEvent.find({ boardId, sequence: { $gt: afterSequence, $lte: upToSequence } })
+      .select({
+        sequence: 1, type: 1, objectId: 1, userId: 1, createdAt: 1,
+        'payload.object.type': 1, 'payload.object.kind': 1, 'payload.object.left': 1, 'payload.object.top': 1,
+        'payload.object.width': 1, 'payload.object.height': 1, 'payload.object.scaleX': 1, 'payload.object.scaleY': 1,
+        'payload.object.originX': 1, 'payload.object.originY': 1,
+        'payload.patch.left': 1, 'payload.patch.top': 1, 'payload.patch.width': 1, 'payload.patch.height': 1,
+        'payload.patch.scaleX': 1, 'payload.patch.scaleY': 1,
+      })
+      .sort({ sequence: 1 })
+      .limit(limit)
+      .lean(),
+
+  async loadAggregate(boardId) {
+    const doc = await AnalyticsAggregate.findOne({ boardId }).lean();
+    return doc && { version: doc.version, sequence: doc.sequence, computedAt: +new Date(doc.computedAt), data: doc.data };
+  },
+
+  saveAggregate: (boardId, { version, sequence, computedAt, data }) =>
+    AnalyticsAggregate.updateOne({ boardId }, { $set: { version, sequence, computedAt: new Date(computedAt), data } }, { upsert: true }),
+
+  async listSessionsSince(boardId, sinceMs) {
+    return (await Session.find({ boardId, startedAt: { $gte: new Date(sinceMs) } }).select('startedAt endedAt').lean()).map((s) => ({ startedAt: s.startedAt, endedAt: s.endedAt ?? null }));
+  },
+
+  /** Every session counts (anyone on the board, with or without edits); a session still open is measured up to `now`. */
+  async getSessionTotals(boardId, now) {
+    const [row] = await Session.aggregate([
+      { $match: { boardId: oid(boardId) } },
+      { $group: { _id: null, count: { $sum: 1 }, totalMs: { $sum: { $subtract: [{ $ifNull: ['$endedAt', new Date(now)] }, '$startedAt'] } } } },
+    ]);
+    return { count: row?.count ?? 0, totalMs: row?.totalMs ?? 0 };
+  },
 
   async findUsers(ids) {
     if (!ids.length) return [];

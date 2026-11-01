@@ -9,6 +9,7 @@ import { useAuthStore } from './store/authStore.js';
 const DashboardPage = lazy(() => import('./pages/DashboardPage.jsx'));
 const EditorPage = lazy(() => import('./pages/EditorPage.jsx'));
 const PlaybackPage = lazy(() => import('./pages/PlaybackPage.jsx'));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage.jsx'));
 
 export default function App() {
   const init = useAuthStore((s) => s.init);
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/board/:id" element={<EditorPage />} />
             <Route path="/board/:id/replay/:sessionId?" element={<PlaybackPage />} />
+            <Route path="/board/:id/analytics" element={<AnalyticsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

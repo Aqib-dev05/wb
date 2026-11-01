@@ -1,7 +1,7 @@
 # CollabBoard
 
 Real-time collaborative whiteboard with session replay and analytics.
-**Status: Phase 4 of 6 done — session recording and playback, on top of real-time collaboration (Phase 3), the editor (Phase 2) and the foundation (Phase 1).**
+**Status: Phase 5 of 6 done — analytics (Recharts dashboard + canvas heatmap) on top of session recording/playback (Phase 4), real-time collaboration (Phase 3), the editor (Phase 2) and the foundation (Phase 1).**
 
 ## Run locally
 
@@ -38,6 +38,7 @@ Failure: `{ "success": false, "error": { "code", "message", "details"? } }`
 | GET | /api/boards/:id/sessions/:sessionId | one session plus who was present when (`presence` join/leave offsets) |
 | GET | /api/boards/:id/sessions/:sessionId/events | `?after=<seq>&limit=` the session's changes in sequence order (cursor-paged) |
 | GET | /api/boards/:id/sessions/:sessionId/state | `?t=<ms since session start>` the board as it was at that moment (`{ sequence, offsetMs, objects }`) |
+| GET | /api/boards/:id/analytics | `?tz=<minutes east of UTC, multiple of 15>&days=7..60` interaction metrics for the board — any member (see below) |
 
 ## Editor
 
@@ -79,3 +80,19 @@ Tests: `cd server && npm test` (state machine, validation, and real Socket.IO in
 **Limits to know about.** Playback shows the changes to the board (objects), not cursor movement or live drag previews — those are never stored. A session that is still live can be watched up to the moment it was opened. Text edits are recorded when committed, as in live sync. Sessions are kept forever for now (no retention policy yet). Only `eventCount` is stored per session; richer analytics come in Phase 5.
 
 Tests: `cd server && npm test` (adds session lifecycle, snapshot-based state-at-sequence, paging/seek and crash recovery) and `cd client && npm test` (playback engine with a fake clock).
+
+## Analytics (Phase 5)
+
+Open it from the bar-chart icon in the editor top bar or "Analytics" on a dashboard card (`/board/:id/analytics`). Every member of a board can see it.
+
+**What it shows.** KPIs (changes, people who made changes, sessions, time on the board); sessions per day; active people per day; changes by kind (created / edited / deleted / reordered) plus what was created (rectangles, sticky notes, ...); changes per person; busiest hours of the day; and a heatmap of *where on the board* changes happened. Every chart has a "View as table" with the exact numbers.
+
+**What the numbers mean.** They are *interaction metrics*: counts of recorded changes and of times people were on the board. They are not engagement or attention: someone who only watches leaves no changes (they still count as a session), and cursor movement is never recorded. The page says so.
+
+**How it is computed.** `analytics.reducer.js` is a pure function over `BoardEvents` (no clock, no I/O), so every figure is checked in tests against hand-computed fixtures. `analytics.service.js` reduces a board's history once and caches it in `AnalyticsAggregates` (one document per board, *replaced*, never incremented, so retries or concurrent refreshes cannot double-count). The cache is valid while the board's sequence is unchanged; after a change it is served for up to 5 s, then rebuilt (concurrent requests share one rebuild). It is also rebuilt daily and whenever `ANALYTICS_VERSION` is bumped. Time is bucketed in 15-minute UTC slots, so "day" and "hour of day" are exact for every real UTC offset (the client sends `tz`; sessions per day use the session's start day).
+
+**Heatmap.** Each change is placed at the centre of the object it touched, using the object's last known position (a colour change or a delete has no position of its own). Rotation is ignored, so positions are approximate. Cells are 100x100 board pixels; the 5,000 busiest are kept and the page says how many changes the rest hold. Changes to objects whose creation is not in the log cannot be placed and are counted separately.
+
+**Limits to know about.** The daily charts cover 7-60 days (the series is kept for 90); everything else is whole history. The viewer's *current* UTC offset is applied to the whole period, so days across a daylight-saving change can be off by an hour. A rebuild reads the board's whole event log, so the first request on a very large, never-analysed board is slow. Analytics are per board; there is no cross-board overview yet. Sessions with no edits are included in session counts.
+
+Tests: `cd server && npm test` now also covers the reducer (10 tests on hand-computed fixtures) and the service (timezones including +5:30/+5:45, zero-filled days, sessions, caching, paging, real-socket events).

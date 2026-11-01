@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Check, History, Loader2, PanelRight, Share2, WifiOff } from 'lucide-react';
+import { ArrowLeft, BarChart3, Check, History, Loader2, PanelRight, Share2, WifiOff } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore.js';
 import { useEditorStore } from '../../store/editorStore.js';
 import { cn } from '../../utils/format.js';
@@ -78,6 +78,9 @@ export function TopBar({ board, readOnly, onRename, onShare }) {
         </div>
         <Link to={`/board/${board.id}/replay`} aria-label="Session history and replay" title="Session history and replay" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink">
           <History size={18} />
+        </Link>
+        <Link to={`/board/${board.id}/analytics`} aria-label="Board analytics" title="Board analytics" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink">
+          <BarChart3 size={18} />
         </Link>
         <Button size="sm" icon={Share2} onClick={onShare}>Share</Button>
         <ThemeToggle />

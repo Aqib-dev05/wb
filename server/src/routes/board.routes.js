@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import * as boards from '../controllers/board.controller.js';
 import * as members from '../controllers/member.controller.js';
+import * as analytics from '../controllers/analytics.controller.js';
 import * as playback from '../controllers/playback.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
-  addMemberSchema, boardIdSchema, changeRoleSchema, createBoardSchema, listBoardsSchema, listSessionsSchema, memberParams,
+  addMemberSchema, analyticsSchema, boardIdSchema, changeRoleSchema, createBoardSchema, listBoardsSchema, listSessionsSchema, memberParams,
   renameBoardSchema, sessionEventsSchema, sessionIdSchema, sessionStateSchema, thumbnailSchema,
 } from '../validators/schemas.js';
 
@@ -25,6 +26,8 @@ router.get('/:id/sessions', validate(listSessionsSchema), playback.listSessions)
 router.get('/:id/sessions/:sessionId', validate(sessionIdSchema), playback.getSession);
 router.get('/:id/sessions/:sessionId/events', validate(sessionEventsSchema), playback.listEvents);
 router.get('/:id/sessions/:sessionId/state', validate(sessionStateSchema), playback.getState);
+
+router.get('/:id/analytics', validate(analyticsSchema), analytics.get);
 
 router.get('/:id/members', validate(boardIdSchema), members.list);
 router.post('/:id/members', validate(addMemberSchema), members.add);

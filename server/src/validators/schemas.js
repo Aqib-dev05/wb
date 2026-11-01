@@ -65,3 +65,12 @@ export const sessionEventsSchema = {
   }),
 };
 export const sessionStateSchema = { params: sessionParams, query: z.object({ t: z.coerce.number().min(0).default(0) }) };
+
+// Analytics (Phase 5). tz = minutes east of UTC; every real UTC offset is a multiple of 15.
+export const analyticsSchema = {
+  params: z.object({ id: objectIdParam }),
+  query: z.object({
+    tz: z.coerce.number().int().min(-840).max(840).refine((v) => v % 15 === 0, 'tz must be a multiple of 15 minutes').default(0),
+    days: z.coerce.number().int().min(7).max(60).default(30),
+  }),
+};

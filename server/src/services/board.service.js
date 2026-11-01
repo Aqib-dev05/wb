@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { AnalyticsAggregate } from '../models/AnalyticsAggregate.js';
 import { Board } from '../models/Board.js';
 import { BoardEvent } from '../models/BoardEvent.js';
 import { BoardSnapshot } from '../models/BoardSnapshot.js';
@@ -136,6 +137,7 @@ export async function deleteBoard(boardId, userId) {
     BoardEvent.deleteMany({ boardId }),
     Session.deleteMany({ boardId }),
     SessionParticipant.deleteMany({ boardId }),
+    AnalyticsAggregate.deleteMany({ boardId }),
   ]);
 }
 

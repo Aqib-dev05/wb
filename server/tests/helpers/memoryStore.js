@@ -5,6 +5,7 @@ export function createMemoryStore({ users = [] } = {}) {
   const events = [];
   const sessions = [];
   const participants = [];
+  const aggregates = new Map();
   const sequences = new Map();
   let counter = 0;
   const nextId = () => (++counter).toString(16).padStart(24, '0');
@@ -22,6 +23,9 @@ export function createMemoryStore({ users = [] } = {}) {
     events,
     sessions,
     participants,
+    aggregates,
+    missingBoards: new Set(), // boards that "do not exist" (getBoardSequence -> null)
+    analyticsReads: 0, // how many times the reducer pulled events (cache tests)
     failNextInsert: false,
     failNextSessionCreate: false,
 
@@ -52,6 +56,7 @@ export function createMemoryStore({ users = [] } = {}) {
       else snapshots[i] = doc;
     },
     async deleteBoardData(boardId) {
+      aggregates.delete(boardId);
       for (const list of [snapshots, events, sessions, participants]) for (let i = list.length - 1; i >= 0; i--) if (list[i].boardId === boardId) list.splice(i, 1);
     },
 
@@ -124,6 +129,29 @@ export function createMemoryStore({ users = [] } = {}) {
     },
     async findEventsBetween(boardId, afterSequence, uptoSequence) {
       return events.filter((e) => e.boardId === boardId && e.sequence > afterSequence && e.sequence <= uptoSequence).sort((a, b) => a.sequence - b.sequence);
+    },
+    /* ───────────── analytics reads ───────────── */
+
+    async getBoardSequence(boardId) {
+      return this.missingBoards.has(boardId) ? null : sequences.get(boardId) ?? 0;
+    },
+    async listEventsForAnalytics(boardId, afterSequence, upToSequence, limit) {
+      this.analyticsReads += 1;
+      return events.filter((e) => e.boardId === boardId && e.sequence > afterSequence && e.sequence <= upToSequence).sort((a, b) => a.sequence - b.sequence).slice(0, limit);
+    },
+    async loadAggregate(boardId) {
+      const a = aggregates.get(boardId);
+      return a ? structuredClone(a) : null;
+    },
+    async saveAggregate(boardId, aggregate) {
+      aggregates.set(boardId, structuredClone(aggregate));
+    },
+    async listSessionsSince(boardId, sinceMs) {
+      return sessions.filter((s) => s.boardId === boardId && +s.startedAt >= sinceMs).map((s) => ({ startedAt: s.startedAt, endedAt: s.endedAt }));
+    },
+    async getSessionTotals(boardId, now) {
+      const mine = sessions.filter((s) => s.boardId === boardId);
+      return { count: mine.length, totalMs: mine.reduce((sum, s) => sum + ((s.endedAt ? +s.endedAt : now) - +s.startedAt), 0) };
     },
     async findUsers(ids) {
       return users.filter((u) => ids.includes(u.id)).map((u) => ({ id: u.id, name: u.name, color: u.color }));
