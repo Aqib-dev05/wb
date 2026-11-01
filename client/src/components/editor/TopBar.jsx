@@ -7,6 +7,7 @@ import { cn } from '../../utils/format.js';
 import { Avatar, AvatarStack } from '../ui/Avatar.jsx';
 import { Button, IconButton } from '../ui/Button.jsx';
 import { ThemeToggle } from '../ui/ThemeToggle.jsx';
+import { NotificationBell } from '../notifications/NotificationBell.jsx';
 import { ExportMenu } from './ExportMenu.jsx';
 
 function SyncStatus({ readOnly }) {
@@ -85,6 +86,7 @@ export function TopBar({ board, controller, readOnly, onRename, onShare }) {
         </Link>
         <ExportMenu controller={controller} title={board.title} />
         <Button size="sm" icon={Share2} onClick={onShare}>Share</Button>
+        <NotificationBell />
         <ThemeToggle />
         <IconButton label={panelOpen ? 'Hide properties' : 'Show properties'} icon={PanelRight} active={panelOpen} onClick={togglePanel} />
       </div>

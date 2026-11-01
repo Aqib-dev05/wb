@@ -74,3 +74,16 @@ export const analyticsSchema = {
     days: z.coerce.number().int().min(7).max(60).default(30),
   }),
 };
+
+export const listNotificationsSchema = {
+  query: z.object({
+    limit: z.coerce.number().int().min(1).max(50).default(30),
+    before: z.string().datetime().optional(),
+  }),
+};
+export const markReadSchema = {
+  body: z.union([
+    z.object({ all: z.literal(true) }),
+    z.object({ ids: z.array(objectIdParam).min(1).max(100) }),
+  ]),
+};

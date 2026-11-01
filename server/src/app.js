@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 import authRoutes from './routes/auth.routes.js';
 import boardRoutes from './routes/board.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
 
 export function createApp({ rooms } = {}) {
   const app = express();
@@ -24,6 +25,7 @@ export function createApp({ rooms } = {}) {
   app.get('/api/health', (_req, res) => res.json({ success: true, data: { status: 'ok', uptime: process.uptime() } }));
   app.use('/api/auth', authRoutes);
   app.use('/api/boards', boardRoutes);
+  app.use('/api/notifications', notificationRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

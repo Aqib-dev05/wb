@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { LogoMark } from '../components/ui/Logo.jsx';
+import { useNotifications } from '../hooks/useNotifications.js';
 import { useAuthStore } from '../store/authStore.js';
 
 function BootScreen() {
@@ -13,6 +14,7 @@ function BootScreen() {
 export function ProtectedRoute() {
   const status = useAuthStore((s) => s.status);
   const location = useLocation();
+  useNotifications(status === 'authenticated');
   if (status === 'loading') return <BootScreen />;
   if (status === 'guest') return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   return <Outlet />;

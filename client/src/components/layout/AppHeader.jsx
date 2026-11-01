@@ -8,6 +8,7 @@ import { Avatar } from '../ui/Avatar.jsx';
 import { Logo } from '../ui/Logo.jsx';
 import { PromptDialog } from '../ui/Modal.jsx';
 import { ThemeToggle } from '../ui/ThemeToggle.jsx';
+import { NotificationBell } from '../notifications/NotificationBell.jsx';
 
 export function AppHeader() {
   const user = useAuthStore((s) => s.user);
@@ -24,6 +25,7 @@ export function AppHeader() {
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link to="/" aria-label="CollabBoard home"><Logo /></Link>
         <div className="flex items-center gap-1">
+          <NotificationBell />
           <ThemeToggle />
           <div ref={ref} className="relative">
             <button onClick={() => setOpen((o) => !o)} aria-label="Account menu" aria-expanded={open} className="ml-1 rounded-full">

@@ -4,6 +4,7 @@ import { Board } from '../models/Board.js';
 import { BoardEvent } from '../models/BoardEvent.js';
 import { BoardSnapshot } from '../models/BoardSnapshot.js';
 import { BoardMember, roleRank } from '../models/BoardMember.js';
+import { Notification } from '../models/Notification.js';
 import { Session } from '../models/Session.js';
 import { SessionParticipant } from '../models/SessionParticipant.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -138,6 +139,7 @@ export async function deleteBoard(boardId, userId) {
     Session.deleteMany({ boardId }),
     SessionParticipant.deleteMany({ boardId }),
     AnalyticsAggregate.deleteMany({ boardId }),
+    Notification.deleteMany({ boardId }),
   ]);
 }
 

@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import { cursorSchema, joinSchema, leaveSchema, submitSchema, transientSchema } from '../validators/ops.validators.js';
 
 const roomName = (boardId) => `board:${boardId}`;
+const userRoom = (userId) => `user:${userId}`; // every socket of one person; used for notifications
 const CURSOR_MIN_INTERVAL_MS = 25;
 
 // Simple token bucket so one misbehaving client can't flood the board queue.
@@ -51,6 +52,7 @@ export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrig
 
   io.on('connection', (socket) => {
     const user = socket.data.user;
+    socket.join(userRoom(user.id));
     const boards = new Map(); // boardId -> role, for boards this socket has joined
     memberships.set(socket.id, boards);
     const allowOps = makeLimiter();
@@ -163,6 +165,11 @@ export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrig
         if (boards?.has(boardId)) boards.set(boardId, role);
         s.emit('board:role', { boardId, role });
       }
+    },
+
+    /** Pushes a notification to every open tab/device of one person. */
+    notifyUser(userId, payload) {
+      io.to(userRoom(userId)).emit('notification:new', payload);
     },
 
     closeBoard(boardId) {

@@ -6,6 +6,7 @@ export function createMemoryStore({ users = [] } = {}) {
   const sessions = [];
   const participants = [];
   const aggregates = new Map();
+  const notifications = [];
   const sequences = new Map();
   let counter = 0;
   const nextId = () => (++counter).toString(16).padStart(24, '0');
@@ -24,6 +25,7 @@ export function createMemoryStore({ users = [] } = {}) {
     sessions,
     participants,
     aggregates,
+    notifications,
     missingBoards: new Set(), // boards that "do not exist" (getBoardSequence -> null)
     analyticsReads: 0, // how many times the reducer pulled events (cache tests)
     failNextInsert: false,
@@ -57,6 +59,7 @@ export function createMemoryStore({ users = [] } = {}) {
     },
     async deleteBoardData(boardId) {
       aggregates.delete(boardId);
+      for (let i = notifications.length - 1; i >= 0; i--) if (notifications[i].boardId === boardId) notifications.splice(i, 1);
       for (const list of [snapshots, events, sessions, participants]) for (let i = list.length - 1; i >= 0; i--) if (list[i].boardId === boardId) list.splice(i, 1);
     },
 
@@ -152,6 +155,26 @@ export function createMemoryStore({ users = [] } = {}) {
     async getSessionTotals(boardId, now) {
       const mine = sessions.filter((s) => s.boardId === boardId);
       return { count: mine.length, totalMs: mine.reduce((sum, s) => sum + ((s.endedAt ? +s.endedAt : now) - +s.startedAt), 0) };
+    },
+    /* ───────────── notifications ───────────── */
+
+    async createNotification({ userId, type, boardId, boardTitle, actor, role }) {
+      const row = { id: nextId(), userId, type, boardId, boardTitle, actor: { ...actor }, role: role ?? null, createdAt: new Date(this.now?.() ?? Date.now()), readAt: null };
+      notifications.push(row);
+      return structuredClone(row);
+    },
+    async listNotifications(userId, { limit, before }) {
+      return notifications
+        .filter((n) => n.userId === userId && (!before || +n.createdAt < +new Date(before)))
+        .sort((a, b) => +b.createdAt - +a.createdAt || (a.id < b.id ? 1 : -1))
+        .slice(0, limit)
+        .map((n) => structuredClone(n));
+    },
+    async countUnreadNotifications(userId) {
+      return notifications.filter((n) => n.userId === userId && !n.readAt).length;
+    },
+    async markNotificationsRead(userId, { ids }) {
+      for (const n of notifications) if (n.userId === userId && !n.readAt && (!ids || ids.includes(n.id))) n.readAt = new Date();
     },
     async findUsers(ids) {
       return users.filter((u) => ids.includes(u.id)).map((u) => ({ id: u.id, name: u.name, color: u.color }));

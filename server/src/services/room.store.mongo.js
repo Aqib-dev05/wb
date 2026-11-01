@@ -3,6 +3,7 @@ import { AnalyticsAggregate } from '../models/AnalyticsAggregate.js';
 import { Board } from '../models/Board.js';
 import { BoardEvent } from '../models/BoardEvent.js';
 import { BoardSnapshot } from '../models/BoardSnapshot.js';
+import { Notification } from '../models/Notification.js';
 import { Session } from '../models/Session.js';
 import { SessionParticipant } from '../models/SessionParticipant.js';
 import { User } from '../models/User.js';
@@ -22,6 +23,18 @@ const toSession = (s) =>
     eventCount: s.eventCount ?? 0,
     lastEventAt: s.lastEventAt ?? null,
   };
+
+const toNotification = (n) => ({
+  id: String(n._id),
+  userId: String(n.userId),
+  type: n.type,
+  boardId: String(n.boardId),
+  boardTitle: n.boardTitle,
+  actor: { id: String(n.actorId), name: n.actorName, color: n.actorColor },
+  role: n.role ?? null,
+  createdAt: n.createdAt,
+  readAt: n.readAt ?? null,
+});
 
 const toParticipant = (p) => ({ sessionId: String(p.sessionId), userId: String(p.userId), joinedAt: p.joinedAt, leftAt: p.leftAt ?? null });
 
@@ -66,6 +79,7 @@ export const mongoStore = {
       Session.deleteMany({ boardId }),
       SessionParticipant.deleteMany({ boardId }),
       AnalyticsAggregate.deleteMany({ boardId }),
+      Notification.deleteMany({ boardId }),
     ]),
 
   /* ───────────── sessions (written by RoomManager) ───────────── */
@@ -178,6 +192,25 @@ export const mongoStore = {
     ]);
     return { count: row?.count ?? 0, totalMs: row?.totalMs ?? 0 };
   },
+
+  /* ───────────── notifications (notification.service) ───────────── */
+
+  async createNotification({ userId, type, boardId, boardTitle, actor, role }) {
+    const doc = await Notification.create({ userId, type, boardId, boardTitle, actorId: actor.id, actorName: actor.name, actorColor: actor.color, role });
+    return toNotification(doc);
+  },
+
+  /** Newest first; `before` (ISO date) returns only older ones. */
+  async listNotifications(userId, { limit, before }) {
+    const filter = { userId };
+    if (before) filter.createdAt = { $lt: new Date(before) };
+    return (await Notification.find(filter).sort({ createdAt: -1, _id: -1 }).limit(limit).lean()).map(toNotification);
+  },
+
+  countUnreadNotifications: (userId) => Notification.countDocuments({ userId, readAt: null }),
+
+  markNotificationsRead: (userId, { ids }) =>
+    Notification.updateMany({ userId, readAt: null, ...(ids ? { _id: { $in: ids } } : {}) }, { $set: { readAt: new Date() } }),
 
   async findUsers(ids) {
     if (!ids.length) return [];

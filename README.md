@@ -1,7 +1,7 @@
 # CollabBoard
 
 Real-time collaborative whiteboard with session replay and analytics.
-**Status: Phase 6 of 6 done — export, performance and accessibility pass, on top of analytics (Recharts dashboard + canvas heatmap), session recording/playback (Phase 4), real-time collaboration (Phase 3), the editor (Phase 2) and the foundation (Phase 1).**
+**Status: Phases 1-6 done plus Phase 7 (notifications) — export, performance and accessibility pass, on top of analytics (Recharts dashboard + canvas heatmap), session recording/playback (Phase 4), real-time collaboration (Phase 3), the editor (Phase 2) and the foundation (Phase 1).**
 
 ## Run locally
 
@@ -110,3 +110,13 @@ Tests: `cd server && npm test` now also covers the reducer (10 tests on hand-com
 **Not verified.** Everything Mongo-backed (Phases 4-6 queries, `board_full` against a real 16 MB document) has not run against a live MongoDB. Performance numbers come from a headless Chromium without a GPU; real devices will differ (relative differences are the useful part). No real-device or screen-reader testing.
 
 Tests: server 56 (8 new: BSON size vs the real library, byte tracking, `board_full`, snapshot back-off), client 19 (6 new: export sizing and file names).
+
+## Notifications (Phase 7)
+
+When the board owner adds someone by email, changes their access, or removes them, that person gets an in-app notification: a bell with an unread badge in the dashboard header and the editor top bar, a toast if they are online, and a list (newest first, "Show older", "Mark all as read"). Clicking a notice opens the board and marks it read.
+
+**How it works.** The notice is saved first (`Notifications` collection, 9th; copies the board title and actor name so it still reads right after a rename; expires after 90 days; removed with the board) and pushed second over a per-person socket room (`user:<id>`, every open tab/device gets it). A person who was offline, or whose push was lost, finds it in the list on the next load; the tab also reloads the list after a reconnect. You are never notified about your own actions (leaving a board, inviting yourself). A notification failure never fails the invite. API: `GET /api/notifications?limit=&before=` (cursor paging, returns `unread`) and `POST /api/notifications/read` (`{ids}` or `{all:true}`, only your own).
+
+**Limits.** Invites add an existing account directly (no email, no pending/accept step), so the notice is informational. No email or push notification outside the app. Mongo-backed queries are not verified against a live MongoDB (tests use the in-memory store; the Chrome run used the real routes with stubbed models).
+
+Tests: server 62 (6 new: persistence + push, self-skip, paging, mark read isolation, cleanup on board delete, per-user socket delivery). Checked in Chrome with two users: live badge and toast, list, open board, persistence across reload, notice delivered while away, role change and removal wording, mobile layout.
