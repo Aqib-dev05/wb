@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Check, History, Loader2, PanelRight, Share2, WifiOff } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, BarChart3, Check, History, Loader2, MoreHorizontal, Moon, PanelRight, Share2, Sun, WifiOff } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore.js';
 import { useEditorStore } from '../../store/editorStore.js';
+import { useUiStore } from '../../store/uiStore.js';
 import { cn } from '../../utils/format.js';
 import { Avatar, AvatarStack } from '../ui/Avatar.jsx';
 import { Button, IconButton } from '../ui/Button.jsx';
+import { Menu } from '../ui/Menu.jsx';
 import { ThemeToggle } from '../ui/ThemeToggle.jsx';
 import { NotificationBell } from '../notifications/NotificationBell.jsx';
+import { CallButton } from '../call/CallButton.jsx';
 import { ExportMenu } from './ExportMenu.jsx';
 
 function SyncStatus({ readOnly }) {
@@ -59,7 +62,26 @@ function TitleField({ title, editable, onRename }) {
   );
 }
 
-export function TopBar({ board, controller, readOnly, onRename, onShare }) {
+/** Phones: history, analytics, theme and the properties panel fold into one menu so the bar fits 360px. */
+function MoreMenu({ boardId, panelOpen, togglePanel }) {
+  const navigate = useNavigate();
+  const theme = useUiStore((s) => s.theme);
+  const toggleTheme = useUiStore((s) => s.toggleTheme);
+  return (
+    <Menu
+      className="sm:hidden"
+      trigger={({ open }) => <IconButton label="More" icon={MoreHorizontal} active={open} />}
+      items={[
+        { label: 'Session history', icon: History, onSelect: () => navigate(`/board/${boardId}/replay`) },
+        { label: 'Analytics', icon: BarChart3, onSelect: () => navigate(`/board/${boardId}/analytics`) },
+        { label: panelOpen ? 'Hide properties' : 'Show properties', icon: PanelRight, onSelect: togglePanel },
+        { label: theme === 'dark' ? 'Light theme' : 'Dark theme', icon: theme === 'dark' ? Sun : Moon, onSelect: toggleTheme },
+      ]}
+    />
+  );
+}
+
+export function TopBar({ board, controller, readOnly, onRename, onShare, call }) {
   const participants = useEditorStore((s) => s.participants);
   const user = useAuthStore((s) => s.user);
   const panelOpen = useEditorStore((s) => s.panelOpen);
@@ -72,23 +94,25 @@ export function TopBar({ board, controller, readOnly, onRename, onShare }) {
         </Link>
         <TitleField title={board.title} editable={!readOnly} onRename={onRename} />
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1 sm:gap-3">
         <SyncStatus readOnly={readOnly} />
-        <div className="flex items-center" aria-label={`${participants.length + 1} people on this board`}>
+        <div className="hidden items-center sm:flex" aria-label={`${participants.length + 1} people on this board`}>
           <AvatarStack users={participants} max={4} size={28} />
           <span className={participants.length ? '-ml-1' : ''} title={`${user?.name} (you)`}><Avatar user={user} size={28} ring /></span>
         </div>
-        <Link to={`/board/${board.id}/replay`} aria-label="Session history and replay" title="Session history and replay" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink">
+        <CallButton call={call} />
+        <Link to={`/board/${board.id}/replay`} aria-label="Session history and replay" title="Session history and replay" className="hidden h-9 w-9 items-center justify-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink sm:inline-flex">
           <History size={18} />
         </Link>
-        <Link to={`/board/${board.id}/analytics`} aria-label="Board analytics" title="Board analytics" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink">
+        <Link to={`/board/${board.id}/analytics`} aria-label="Board analytics" title="Board analytics" className="hidden h-9 w-9 items-center justify-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink sm:inline-flex">
           <BarChart3 size={18} />
         </Link>
         <ExportMenu controller={controller} title={board.title} />
         <Button size="sm" icon={Share2} onClick={onShare}>Share</Button>
         <NotificationBell />
-        <ThemeToggle />
-        <IconButton label={panelOpen ? 'Hide properties' : 'Show properties'} icon={PanelRight} active={panelOpen} onClick={togglePanel} />
+        <span className="hidden sm:inline-flex"><ThemeToggle /></span>
+        <span className="hidden sm:inline-flex"><IconButton label={panelOpen ? 'Hide properties' : 'Show properties'} icon={PanelRight} active={panelOpen} onClick={togglePanel} /></span>
+        <MoreMenu boardId={board.id} panelOpen={panelOpen} togglePanel={togglePanel} />
       </div>
     </header>
   );

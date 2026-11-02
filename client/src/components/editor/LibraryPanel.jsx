@@ -2,6 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Search, X } from 'lucide-react';
 import { loadIcons, loadLogos, logoPath, pinned, POPULAR_ICONS, POPULAR_LOGOS, SHAPES } from '../../canvas/library/catalog.js';
 import { searchItems } from '../../canvas/library/search.js';
+import { useCallStore } from '../../store/callStore.js';
 import { useUiStore } from '../../store/uiStore.js';
 import { cn } from '../../utils/format.js';
 
@@ -71,6 +72,7 @@ function Section({ title, children, note }) {
 /** Searchable library of shapes, icons (devices, networking, apps) and brand logos. Click an item to drop it on the board. */
 export function LibraryPanel({ controller, onClose }) {
   const toast = useUiStore((s) => s.toast);
+  const inCall = useCallStore((s) => s.status !== 'idle'); // the call window sits at the bottom; keep clear of it
   const [query, setQuery] = useState('');
   const deferred = useDeferredValue(query);
   const [tab, setTab] = useState('all');
@@ -110,7 +112,7 @@ export function LibraryPanel({ controller, onClose }) {
   const failed = (tab === 'icon' && icons.status === 'error') || (tab === 'logo' && logos.status === 'error');
 
   return (
-    <aside aria-label="Shapes, icons and logos" className="pointer-events-auto absolute inset-x-3 bottom-16 z-20 flex max-h-[62vh] flex-col overflow-hidden rounded-2xl bg-surface shadow-pop sm:inset-x-auto sm:bottom-20 sm:left-[4.75rem] sm:top-20 sm:max-h-none sm:w-80"
+    <aside aria-label="Shapes, icons and logos" className={cn('pointer-events-auto absolute inset-x-3 z-20 flex flex-col overflow-hidden rounded-2xl bg-surface shadow-pop sm:inset-x-auto sm:left-[4.75rem] sm:top-20 sm:max-h-none sm:w-80', inCall ? 'bottom-[11.5rem] max-h-[40vh] sm:bottom-40' : 'bottom-16 max-h-[62vh] sm:bottom-20')}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
       <div className="flex items-center gap-2 border-b border-line p-3">
         <label className="relative flex-1">

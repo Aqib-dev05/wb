@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 import authRoutes from './routes/auth.routes.js';
 import boardRoutes from './routes/board.routes.js';
+import callRoutes from './routes/call.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 
 export function createApp({ rooms } = {}) {
@@ -26,6 +27,7 @@ export function createApp({ rooms } = {}) {
   app.use('/api/auth', authRoutes);
   app.use('/api/boards', boardRoutes);
   app.use('/api/notifications', notificationRoutes);
+  app.use('/api/calls', callRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -6,9 +6,11 @@ import { LibraryPanel } from '../components/editor/LibraryPanel.jsx';
 import { PropertiesPanel } from '../components/editor/PropertiesPanel.jsx';
 import { ToolPalette } from '../components/editor/ToolPalette.jsx';
 import { TopBar } from '../components/editor/TopBar.jsx';
+import { CallPanel } from '../components/call/CallPanel.jsx';
 import { Button } from '../components/ui/Button.jsx';
 import { RemoteCursors } from '../components/editor/RemoteCursors.jsx';
 import { ShareDialog } from '../components/editor/ShareDialog.jsx';
+import { useCall } from '../hooks/useCall.js';
 import { useCollaboration } from '../hooks/useCollaboration.js';
 import { useCanvas } from '../hooks/useCanvas.js';
 import { useShortcuts } from '../hooks/useShortcuts.js';
@@ -46,6 +48,8 @@ function Editor({ initialBoard }) {
     },
   });
 
+  const call = useCall(session, board.id);
+
   useEffect(() => {
     controller?.setInsets({ right: panelOpen ? 288 : 40 });
   }, [controller, panelOpen]);
@@ -66,11 +70,12 @@ function Editor({ initialBoard }) {
       <RemoteCursors controller={controller} session={session} />
       {!loaded && <div className="absolute inset-0 z-30 flex items-center justify-center bg-canvas/70" role="status" aria-label="Loading board"><div className="skeleton h-5 w-40 rounded" /></div>}
       <div className="pointer-events-none absolute inset-0">
-        <TopBar board={board} controller={controller} readOnly={readOnly} onRename={rename} onShare={() => setSharing(true)} />
+        <TopBar board={board} controller={controller} readOnly={readOnly} onRename={rename} onShare={() => setSharing(true)} call={call} />
         <ToolPalette controller={controller} readOnly={readOnly} />
         {libraryOpen && !readOnly && <LibraryPanel controller={controller} onClose={() => toggleLibrary(false)} />}
         <PropertiesPanel controller={controller} board={board} readOnly={readOnly} />
         <BottomBar controller={controller} readOnly={readOnly} />
+        <CallPanel call={call} />
       </div>
       {sharing && <ShareDialog board={board} isOwner={board.role === 'owner'} onClose={() => setSharing(false)} />}
     </div>

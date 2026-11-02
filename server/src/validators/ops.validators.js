@@ -113,3 +113,20 @@ export const transientSchema = z.object({
   patch: z.object({ left: num, top: num, scaleX: num.optional(), scaleY: num.optional(), angle: num.optional(), width: num.optional(), height: num.optional() }),
 });
 export const leaveSchema = z.object({ boardId: objectId });
+
+// ---- live calls (WebRTC signalling) ----
+const mediaFlags = z.object({ audio: z.boolean().optional(), video: z.boolean().optional() });
+export const callJoinSchema = z.object({ boardId: objectId, audio: z.boolean().optional(), video: z.boolean().optional() });
+export const callLeaveSchema = z.object({ boardId: objectId });
+export const callMediaSchema = z.object({ boardId: objectId }).extend(mediaFlags.shape);
+export const callSignalSchema = z.object({
+  boardId: objectId,
+  to: z.string().min(1).max(64),
+  description: z.object({ type: z.enum(['offer', 'answer']), sdp: z.string().max(60_000) }).optional(),
+  candidate: z.object({
+    candidate: z.string().max(2_000),
+    sdpMid: z.string().max(64).nullable().optional(),
+    sdpMLineIndex: z.number().int().min(0).max(64).nullable().optional(),
+    usernameFragment: z.string().max(256).nullable().optional(),
+  }).nullable().optional(),
+}).refine((s) => s.description || s.candidate !== undefined, { message: 'Nothing to signal' });

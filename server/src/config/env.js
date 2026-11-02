@@ -12,6 +12,12 @@ const schema = z.object({
   ACCESS_TOKEN_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().default(7),
   CLIENT_ORIGIN: z.string().default('http://localhost:5173'),
+  // Live calls (WebRTC). STUN is used by default; add a TURN relay for strict networks.
+  STUN_URLS: z.string().optional(),
+  TURN_URLS: z.string().optional(),
+  TURN_SECRET: z.string().optional(),
+  TURN_USERNAME: z.string().optional(),
+  TURN_CREDENTIAL: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);

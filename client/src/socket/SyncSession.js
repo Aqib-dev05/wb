@@ -22,7 +22,7 @@ const TRANSIENT_INTERVAL_MS = 60;
  *     missed something and rejoin (delta if the server still has the ops, full state otherwise).
  *
  * Status: 'connecting' | 'live' | 'offline' | 'denied' | 'closed'
- * Events (via `on`): status, presence, cursor, pending, role, error, kicked, deleted
+ * Events (via `on`): status, presence, cursor, pending, role, error, kicked, deleted, callcount
  */
 export class SyncSession {
   constructor(boardId, controller) {
@@ -129,6 +129,7 @@ export class SyncSession {
       this.#emit('presence', [...this.participants.values()]);
       this.#emit('cursor', { userId, gone: true });
     });
+    s.on('call:count', ({ boardId, count }) => boardId === this.boardId && this.#emit('callcount', count));
     s.on('board:role', ({ role }) => {
       this.role = role;
       this.#emit('role', role);
@@ -183,6 +184,7 @@ export class SyncSession {
     this.#emit('role', res.role);
     this.participants = new Map(res.participants.filter((p) => p.id !== res.you.id).map((p) => [p.id, p]));
     this.#emit('presence', [...this.participants.values()]);
+    this.#emit('callcount', res.callCount ?? 0);
 
     // Batches the server already holds (their ack was lost): drop them, never resend.
     const known = new Set(res.knownBatchIds ?? []);

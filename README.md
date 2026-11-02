@@ -136,3 +136,23 @@ kind (icons: stroke; logos: one colour; shapes: fill + stroke). Items that would
 
 Known limits: Simple Icons has dropped a few brands for legal reasons (LinkedIn, AWS, Microsoft, Slack, Windows are
 not available). Logos are trademarks of their owners; view-only members cannot open the library.
+
+## Live video & voice calls (Phase 9)
+
+Click the camera button in the top bar: **Join with camera and mic**, **mic only**, or **listen and watch**. Everybody on the board
+(including view-only members) can join. The button shows how many people are in the call right now, live, even if you are not.
+Your tile shows mic/camera state for everyone; mute and camera toggles work without renegotiating the connection.
+
+How it works: a WebRTC **mesh**. Each participant connects directly to every other one; audio and video never pass through this server.
+Socket.IO only carries signalling (`call:join`, `call:signal`, `call:media`, `call:leave`, `call:peer-joined|left`, `call:count`).
+The server keeps the roster, only relays between two members of the same call, validates and size-limits every message, and removes
+you from the call when you leave the board, lose connection, or are removed from the board. After a dropped connection the client
+rejoins by itself. Closing the board page releases the camera and microphone.
+
+Things to know:
+- **Mesh = small groups.** Each person uploads one copy of their video per participant, so the call is capped at 6 people (`MAX_CALL_PEERS`).
+  Bigger calls would need an SFU (LiveKit, mediasoup).
+- **Networks.** STUN works for most home/office networks. Behind strict NATs or firewalls, calls need a TURN relay: set `TURN_URLS` plus
+  `TURN_SECRET` (coturn `use-auth-secret`) or `TURN_USERNAME`/`TURN_CREDENTIAL` (see `server/.env.example`). Without TURN some pairs of people
+  will show "Can't connect". Browsers only allow camera/mic on HTTPS or `localhost`.
+- No recording, screen sharing or chat in the call yet.

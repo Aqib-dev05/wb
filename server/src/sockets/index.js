@@ -1,8 +1,10 @@
 import { Server } from 'socket.io';
-import { cursorSchema, joinSchema, leaveSchema, submitSchema, transientSchema } from '../validators/ops.validators.js';
+import { CallManager } from '../services/call.service.js';
+import { callJoinSchema, callLeaveSchema, callMediaSchema, callSignalSchema, cursorSchema, joinSchema, leaveSchema, submitSchema, transientSchema } from '../validators/ops.validators.js';
 
 const roomName = (boardId) => `board:${boardId}`;
 const userRoom = (userId) => `user:${userId}`; // every socket of one person; used for notifications
+const callRoom = (boardId) => `call:${boardId}`;
 const CURSOR_MIN_INTERVAL_MS = 25;
 
 // Simple token bucket so one misbehaving client can't flood the board queue.
@@ -28,7 +30,7 @@ const fail = (ack, code, message) => typeof ack === 'function' && ack({ ok: fals
  *   getRole(boardId, userId) -> 'owner' | 'editor' | 'viewer' | null
  *   rooms: RoomManager
  */
-export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrigin }) {
+export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrigin, calls = new CallManager() }) {
   const io = new Server(httpServer, {
     cors: { origin: corsOrigin, credentials: true },
     maxHttpBufferSize: 6e6,
@@ -50,6 +52,9 @@ export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrig
   // socket.id -> (boardId -> role). Lives at server level so a role change takes effect on the next op.
   const memberships = new Map();
 
+  // Everyone on the board (not just those in the call) learns how many people are on a call, to show "call in progress".
+  const announceCall = (boardId) => io.to(roomName(boardId)).emit('call:count', { boardId, count: calls.size(boardId) });
+
   io.on('connection', (socket) => {
     const user = socket.data.user;
     socket.join(userRoom(user.id));
@@ -58,7 +63,15 @@ export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrig
     const allowOps = makeLimiter();
     let lastCursorAt = 0;
 
+    const leaveCall = (boardId) => {
+      if (!calls.leave(boardId, socket.id)) return;
+      socket.leave(callRoom(boardId));
+      socket.to(callRoom(boardId)).emit('call:peer-left', { boardId, socketId: socket.id, userId: user.id });
+      announceCall(boardId);
+    };
+
     const leaveBoard = (boardId) => {
+      leaveCall(boardId); // a call only exists for people who are on the board
       if (!boards.delete(boardId)) return;
       socket.leave(roomName(boardId));
       const room = rooms.rooms.get(boardId);
@@ -84,7 +97,7 @@ export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrig
         if (rooms.enter(joined.room, user, socket.id)) socket.to(roomName(boardId)).emit('user:joined', { boardId, user });
 
         const { room, ...snapshot } = joined;
-        ack?.({ ok: true, role, you: user, participants: room.participants(), ...snapshot });
+        ack?.({ ok: true, role, you: user, participants: room.participants(), callCount: calls.size(boardId), ...snapshot });
       } catch (err) {
         console.error('board:join failed:', err);
         fail(ack, 'INTERNAL_ERROR', 'Could not open the board');
@@ -133,6 +146,47 @@ export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrig
       socket.to(roomName(boardId)).volatile.emit('object:transient', { boardId, userId: user.id, id, patch });
     });
 
+    // ---- live video/voice: this server only keeps the roster and relays signalling; media flows peer to peer ----
+    const allowSignal = makeLimiter({ capacity: 200, refillPerSec: 100 }); // ICE trickle is bursty
+
+    socket.on('call:join', (payload, ack) => {
+      const parsed = callJoinSchema.safeParse(payload);
+      if (!parsed.success) return fail(ack, 'BAD_REQUEST', 'Invalid call request');
+      const { boardId, audio, video } = parsed.data;
+      if (!boards.has(boardId)) return fail(ack, 'NOT_JOINED', 'Join the board first');
+      const res = calls.join(boardId, socket.id, user, { audio, video });
+      if (!res.ok) return fail(ack, 'CALL_FULL', `This call is full (${calls.maxPeers} people at most)`);
+      const wasNew = !res.peers.some((p) => p.socketId === socket.id);
+      socket.join(callRoom(boardId));
+      if (wasNew) {
+        socket.to(callRoom(boardId)).emit('call:peer-joined', { boardId, peer: res.peer });
+        announceCall(boardId);
+      }
+      ack?.({ ok: true, you: socket.id, peers: res.peers.filter((p) => p.socketId !== socket.id) });
+    });
+
+    socket.on('call:leave', (payload) => {
+      const parsed = callLeaveSchema.safeParse(payload);
+      if (parsed.success) leaveCall(parsed.data.boardId);
+    });
+
+    socket.on('call:media', (payload) => {
+      const parsed = callMediaSchema.safeParse(payload);
+      if (!parsed.success) return;
+      const { boardId, audio, video } = parsed.data;
+      const peer = calls.setMedia(boardId, socket.id, { audio, video });
+      if (peer) socket.to(callRoom(boardId)).emit('call:media', { boardId, socketId: socket.id, audio: peer.audio, video: peer.video });
+    });
+
+    // Offer / answer / ICE candidate for one specific peer. Only relayed between two members of the same call.
+    socket.on('call:signal', (payload) => {
+      const parsed = callSignalSchema.safeParse(payload);
+      if (!parsed.success || !allowSignal()) return;
+      const { boardId, to, description, candidate } = parsed.data;
+      if (!calls.has(boardId, socket.id) || !calls.has(boardId, to)) return;
+      io.to(to).emit('call:signal', { boardId, from: socket.id, description, candidate });
+    });
+
     socket.on('disconnect', () => {
       for (const boardId of [...boards.keys()]) leaveBoard(boardId);
       memberships.delete(socket.id);
@@ -149,6 +203,11 @@ export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrig
         if (s.data.user.id !== userId) continue;
         s.emit('board:kicked', { boardId });
         s.leave(roomName(boardId));
+        if (calls.leave(boardId, s.id)) {
+          s.leave(callRoom(boardId));
+          io.to(callRoom(boardId)).emit('call:peer-left', { boardId, socketId: s.id, userId });
+          announceCall(boardId);
+        }
         memberships.get(s.id)?.delete(boardId); // without this the socket could still submit ops
         const room = rooms.rooms.get(String(boardId));
         if (room && rooms.exit(room, userId, s.id)) io.to(roomName(boardId)).emit('user:left', { boardId, userId });
@@ -172,7 +231,12 @@ export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrig
       io.to(userRoom(userId)).emit('notification:new', payload);
     },
 
+    /** Call roster for a board (read-only, for the "call in progress" hint). */
+    callParticipants(boardId) { return calls.list(boardId).map((p) => ({ socketId: p.socketId, user: p.user })); },
+
     closeBoard(boardId) {
+      for (const p of calls.list(boardId)) calls.leave(boardId, p.socketId);
+      io.in(callRoom(boardId)).socketsLeave(callRoom(boardId));
       io.to(roomName(boardId)).emit('board:deleted', { boardId });
       io.in(roomName(boardId)).socketsLeave(roomName(boardId));
     },
