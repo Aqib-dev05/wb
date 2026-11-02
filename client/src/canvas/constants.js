@@ -24,6 +24,10 @@ export const CAPS = {
   pen: { stroke: 'Stroke', strokeWidth: true, opacity: true },
   text: { fill: 'Text color', fontSize: true, opacity: true },
   sticky: { fill: 'Note color', fontSize: true, opacity: true },
+  // Library items (all are Paths). Icons are line art; logos are one solid colour; shapes have both.
+  shape: { fill: 'Fill', stroke: 'Stroke', strokeWidth: true, opacity: true },
+  icon: { stroke: 'Stroke', strokeWidth: true, opacity: true },
+  logo: { fill: 'Color', opacity: true },
 };
 
 // Style controls shown for a tool before anything is selected (they edit the defaults for new objects).

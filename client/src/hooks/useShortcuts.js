@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useEditorStore } from '../store/editorStore.js';
 
 const TOOL_KEYS = { v: 'select', h: 'hand', p: 'pen', r: 'rect', o: 'ellipse', g: 'triangle', l: 'line', a: 'arrow', t: 'text', n: 'sticky' };
 const isTyping = (t) => t instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable);
@@ -58,6 +59,7 @@ export function useShortcuts(controller, readOnly) {
         controller.nudge(key === 'arrowleft' ? -step : key === 'arrowright' ? step : 0, key === 'arrowup' ? -step : key === 'arrowdown' ? step : 0);
         return;
       }
+      if (!mod && !e.altKey && key === 'i') return void (e.preventDefault(), useEditorStore.getState().toggleLibrary());
       if (!mod && !e.altKey && TOOL_KEYS[key]) controller.setTool(TOOL_KEYS[key]);
     };
 

@@ -120,3 +120,19 @@ When the board owner adds someone by email, changes their access, or removes the
 **Limits.** Invites add an existing account directly (no email, no pending/accept step), so the notice is informational. No email or push notification outside the app. Mongo-backed queries are not verified against a live MongoDB (tests use the in-memory store; the Chrome run used the real routes with stubbed models).
 
 Tests: server 62 (6 new: persistence + push, self-skip, paging, mark read isolation, cleanup on board delete, per-user socket delivery). Checked in Chrome with two users: live badge and toast, list, open board, persistence across reload, notice delivered while away, role change and removal wording, mobile layout.
+
+## Shapes, icons & logos library (Phase 8)
+
+Open it from the grid button in the tool palette (or press `I`). Search works across all three groups:
+`fb`, `insta`, `react`, `tailwind`, `laptop`, `server`, `router`, `pc`, `db` and similar short names are understood.
+
+- **Shapes** (32, hand-drawn paths): flowchart shapes, polygons, block arrows, cloud, cylinder, etc.
+- **Icons** (2,000+): [Lucide](https://lucide.dev), covering devices, servers, networking, files, UI.
+- **Logos** (3,400+): [Simple Icons](https://simpleicons.org) (CC0), loaded lazily on first open.
+
+Every item lands on the board as an ordinary Fabric `Path` with a `kind` of `shape`, `icon` or `logo`, so there is no
+server schema change: it syncs, replays, exports and shows up in analytics like any other object. Properties differ by
+kind (icons: stroke; logos: one colour; shapes: fill + stroke). Items that would exceed the 200 KB object limit are refused.
+
+Known limits: Simple Icons has dropped a few brands for legal reasons (LinkedIn, AWS, Microsoft, Slack, Windows are
+not available). Logos are trademarks of their owners; view-only members cannot open the library.

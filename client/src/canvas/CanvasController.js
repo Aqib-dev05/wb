@@ -1,4 +1,4 @@
-import { ActiveSelection, Canvas, FabricObject, IText, PencilBrush, Point, util } from 'fabric';
+import { ActiveSelection, Canvas, FabricObject, IText, PencilBrush, Path, Point, util } from 'fabric';
 import { CAPS, DEFAULTS, FONT, PAPER, PROPS, SHAPE_TOOLS, STICKY_COLORS, ZOOM } from './constants.js';
 import { planExport } from './exportPlan.js';
 import { uid } from './ids.js';
@@ -55,6 +55,7 @@ export class CanvasController {
     this.history = new OpsHistory();
     this.clipboard = null;
     this.pasteCount = 0;
+    this.insertCount = 0;
     this.draft = null;
     this.placing = null;
     this.panning = null;
@@ -260,6 +261,46 @@ export class CanvasController {
     this.setTool('select');
     this.canvas.setActiveObject(shape);
     this.commit();
+  }
+
+  /**
+   * Adds a library item (built-in shape, icon or brand logo) as a Path at the centre of what the
+   * person can currently see, selected and ready to drag. It is an ordinary Path object (same as a
+   * pen stroke), so it syncs, replays and exports like everything else.
+   *   item: { kind: 'shape'|'icon'|'logo', d, w, h, fill?, evenodd?, color? }
+   * Returns { ok: true } or { ok: false, reason }.
+   */
+  insertLibraryItem(item) {
+    if (this.readOnly || this.disposed) return { ok: false, reason: 'You have view-only access to this board.' };
+    if (!item?.d) return { ok: false, reason: 'That item has no outline to draw.' };
+    const style = this.#style();
+    const base = { id: uid(), kind: item.kind, strokeUniform: true, opacity: style.opacity, strokeLineCap: 'round', strokeLineJoin: 'round' };
+    const look =
+      item.kind === 'icon'
+        ? { fill: null, stroke: style.stroke, strokeWidth: 4 }
+        : item.kind === 'logo'
+          ? { fill: item.color, stroke: null, strokeWidth: 0 }
+          : { fill: item.fill === false ? null : style.fill, stroke: style.stroke, strokeWidth: style.strokeWidth, fillRule: item.evenodd ? 'evenodd' : 'nonzero' };
+    const path = new Path(item.d, { ...base, ...look });
+    if (!(path.width > 0 || path.height > 0)) return { ok: false, reason: 'That item could not be drawn.' };
+
+    const longest = item.kind === 'shape' ? 140 : 96; // scene px
+    path.scale(longest / Math.max(path.width, path.height, 1));
+
+    // Centre of the area not covered by the floating toolbars, nudged a little per item so repeats do not stack exactly.
+    const { top, right, bottom, left } = this.insets;
+    const screen = new Point((left + this.host.clientWidth - right) / 2, (top + this.host.clientHeight - bottom) / 2);
+    const at = util.transformPoint(screen, util.invertTransform(this.canvas.viewportTransform));
+    const nudge = (this.insertCount++ % 6) * 24;
+    path.set({ left: at.x - path.getScaledWidth() / 2 + nudge, top: at.y - path.getScaledHeight() / 2 + nudge });
+    path.setCoords();
+
+    if (JSON.stringify(path.toObject(PROPS)).length > 200_000) return { ok: false, reason: 'That logo is too detailed to place on a board.' };
+    this.canvas.add(path);
+    this.setTool('select');
+    this.canvas.setActiveObject(path);
+    this.commit();
+    return { ok: true };
   }
 
   #placeText(p) {

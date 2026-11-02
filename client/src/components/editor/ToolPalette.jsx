@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ArrowUpRight, Circle, Hand, Minus, MousePointer2, Pencil, Shapes, Square, StickyNote, Triangle, Type } from 'lucide-react';
+import { ArrowUpRight, Circle, Hand, LayoutGrid, Minus, MousePointer2, Pencil, Shapes, Square, StickyNote, Triangle, Type } from 'lucide-react';
 import { SHAPE_TOOLS } from '../../canvas/constants.js';
 import { useDismiss } from '../../hooks/useCommon.js';
 import { useEditorStore } from '../../store/editorStore.js';
@@ -31,6 +31,8 @@ function ToolButton({ label, shortcut, icon: Icon, active, onClick, ...rest }) {
 
 export function ToolPalette({ controller, readOnly }) {
   const tool = useEditorStore((s) => s.tool);
+  const libraryOpen = useEditorStore((s) => s.libraryOpen);
+  const toggleLibrary = useEditorStore((s) => s.toggleLibrary);
   const [lastShape, setLastShape] = useState('rect');
   const [flyout, setFlyout] = useState(false);
   const ref = useRef(null);
@@ -75,6 +77,8 @@ export function ToolPalette({ controller, readOnly }) {
           </div>
           <ToolButton label="Text" shortcut="T" icon={Type} active={tool === 'text'} onClick={() => set('text')} />
           <ToolButton label="Sticky note" shortcut="N" icon={StickyNote} active={tool === 'sticky'} onClick={() => set('sticky')} />
+          <div className="mx-2 my-1 h-px bg-line" />
+          <ToolButton label="Shapes, icons and logos library" shortcut="I" icon={LayoutGrid} active={libraryOpen} aria-expanded={libraryOpen} onClick={() => toggleLibrary()} />
         </>
       )}
     </nav>

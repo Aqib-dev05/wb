@@ -9,6 +9,7 @@ const initial = () => ({
   viewport: { zoom: 1 },
   sync: { status: 'connecting', pending: 0 }, // status: connecting | live | offline | denied | closed
   participants: [], // other people on the board right now
+  libraryOpen: false, // shapes / icons / logos panel
   panelOpen: typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)').matches : true,
 });
 
@@ -22,5 +23,6 @@ export const useEditorStore = create((set) => ({
   setViewport: (viewport) => set({ viewport }),
   setSync: (patch) => set((s) => ({ sync: { ...s.sync, ...patch } })),
   setParticipants: (participants) => set({ participants }),
+  toggleLibrary: (open) => set((s) => ({ libraryOpen: open ?? !s.libraryOpen })),
   togglePanel: () => set((s) => ({ panelOpen: !s.panelOpen })),
 }));

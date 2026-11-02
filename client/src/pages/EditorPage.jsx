@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { BottomBar } from '../components/editor/BottomBar.jsx';
 import { CanvasStage } from '../components/editor/CanvasStage.jsx';
+import { LibraryPanel } from '../components/editor/LibraryPanel.jsx';
 import { PropertiesPanel } from '../components/editor/PropertiesPanel.jsx';
 import { ToolPalette } from '../components/editor/ToolPalette.jsx';
 import { TopBar } from '../components/editor/TopBar.jsx';
@@ -33,6 +34,8 @@ function Editor({ initialBoard }) {
   const hostRef = useRef(null);
   const readOnly = board.role === 'viewer';
   const panelOpen = useEditorStore((s) => s.panelOpen);
+  const libraryOpen = useEditorStore((s) => s.libraryOpen);
+  const toggleLibrary = useEditorStore((s) => s.toggleLibrary);
 
   const controller = useCanvas(hostRef, readOnly);
   useShortcuts(controller, readOnly);
@@ -65,6 +68,7 @@ function Editor({ initialBoard }) {
       <div className="pointer-events-none absolute inset-0">
         <TopBar board={board} controller={controller} readOnly={readOnly} onRename={rename} onShare={() => setSharing(true)} />
         <ToolPalette controller={controller} readOnly={readOnly} />
+        {libraryOpen && !readOnly && <LibraryPanel controller={controller} onClose={() => toggleLibrary(false)} />}
         <PropertiesPanel controller={controller} board={board} readOnly={readOnly} />
         <BottomBar controller={controller} readOnly={readOnly} />
       </div>
