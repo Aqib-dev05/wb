@@ -27,6 +27,8 @@ Failure: `{ "success": false, "error": { "code", "message", "details"? } }`
 | Method | Path | Notes |
 |---|---|---|
 | POST | /api/auth/register, /login | sets httpOnly refresh cookie, returns access token |
+| POST | /api/auth/password/forgot | `{ email }` — always the same 200; if the account exists a 6-digit code is emailed |
+| POST | /api/auth/password/reset | `{ email, code, password }` — 400 `INVALID_CODE` for every failure; success ends all sessions |
 | POST | /api/auth/refresh, /logout | refresh rotates the token; reuse revokes all sessions |
 | GET/PATCH | /api/auth/me | profile |
 | GET/POST | /api/boards | `?q=&scope=all\|recent\|owned\|shared&page=&limit=` |
@@ -156,3 +158,20 @@ Things to know:
   `TURN_SECRET` (coturn `use-auth-secret`) or `TURN_USERNAME`/`TURN_CREDENTIAL` (see `server/.env.example`). Without TURN some pairs of people
   will show "Can't connect". Browsers only allow camera/mic on HTTPS or `localhost`.
 - No recording, screen sharing or chat in the call yet.
+
+## Security & password reset
+
+**Password reset (email OTP).** `/forgot-password` asks for the email, then the 6-digit code plus a new password. The code is CSPRNG-generated, stored only as an HMAC (pepper: `OTP_SECRET`, else derived from `JWT_REFRESH_SECRET`), valid 10 min, single-use, and allows 5 guesses (atomic, so parallel guesses each cost one). Resend cooldown 60 s, max 5 sends/hour. Responses never reveal whether an email exists (same body, 400 ms minimum time). The email contains no link, so there is no Host-header poisoning. On success every refresh token is wiped, the access-token password-version (`pv`) changes so live access tokens die immediately, open sockets are closed, and a "password changed" email goes out.
+
+**Hardening in place**
+- JWTs pinned to HS256 + issuer + audience (access and refresh cannot be swapped); access token carries `pv`.
+- Refresh rotation is an atomic claim with a 10 s grace for multi-tab; replaying an older token revokes all sessions.
+- Password policy: 8-72 **bytes** (bcrypt limit), letter + number, no common passwords, must not contain the email name.
+- Per-IP rate limits on auth routes, per-user limits on board routes, invite limiter, per-address login lockout (10 failures / 15 min, keyed by hash so unknown emails behave identically).
+- Origin guard on state-changing requests (CSRF), refresh cookie is httpOnly + SameSite=Lax + path-scoped.
+- Caps: 200 owned boards per user, 50 members per board.
+- Production refuses to start without `SMTP_URL`, two distinct JWT secrets >= 32 chars.
+
+**Production env:** `SMTP_URL`, `MAIL_FROM`, `TRUST_PROXY` (number of proxy hops; default 1 in production), optional `OTP_SECRET`. In development, mails are printed to the server console.
+
+**Known limits (not fixed):** signup does not verify email ownership and reveals existing emails; rate limiters are in-memory per process (use a shared store when running several instances); CSP/HSTS belong on the static host serving the SPA; Mongo-backed code has never run against a live database (the same logic is tested through an in-memory twin).

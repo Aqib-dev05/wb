@@ -11,6 +11,9 @@ import { ApiError } from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/http.js';
 
 const OWNER_FIELDS = 'name color';
+// Soft caps so one account cannot fill the database or spam invitations.
+export const MAX_OWNED_BOARDS = 200;
+export const MAX_MEMBERS_PER_BOARD = 50;
 
 /** Returns the caller's membership for a board or throws 404 (hides existence from non-members). */
 export async function getMembership(boardId, userId) {
@@ -82,15 +85,25 @@ export async function listBoards(userId, { q, scope = 'all', page = 1, limit = 2
   const boardFilter = { _id: { $in: memberships.map((m) => m.boardId) } };
   if (q) boardFilter.title = { $regex: escapeRegex(q), $options: 'i' };
 
-  const sort = scope === 'recent' ? { lastModifiedAt: -1 } : { lastModifiedAt: -1 };
-  const [total, boards] = await Promise.all([
-    Board.countDocuments(boardFilter),
-    Board.find(boardFilter).sort(sort).skip((page - 1) * limit).limit(limit).populate('ownerId', OWNER_FIELDS).lean(),
-  ]);
-
-  let items = boards;
+  let total;
+  let items;
   if (scope === 'recent') {
-    items = [...boards].sort((a, b) => new Date(membershipByBoard.get(String(b._id)).lastOpenedAt) - new Date(membershipByBoard.get(String(a._id)).lastOpenedAt));
+    // "Recent" means most recently OPENED by this person. That order lives on the membership, not the board, so it is applied
+    // to the whole match first and only then cut into pages (sorting inside a page would shuffle boards between pages).
+    const matching = await Board.find(boardFilter).select('_id').lean();
+    const ordered = matching.map((b) => String(b._id)).sort((a, b) => +new Date(membershipByBoard.get(b).lastOpenedAt) - +new Date(membershipByBoard.get(a).lastOpenedAt));
+    total = ordered.length;
+    const pageIds = ordered.slice((page - 1) * limit, page * limit);
+    const boards = await Board.find({ _id: { $in: pageIds } }).populate('ownerId', OWNER_FIELDS).lean();
+    const byId = new Map(boards.map((b) => [String(b._id), b]));
+    items = pageIds.map((id) => byId.get(id)).filter(Boolean);
+  } else {
+    let boards;
+    [total, boards] = await Promise.all([
+      Board.countDocuments(boardFilter),
+      Board.find(boardFilter).sort({ lastModifiedAt: -1 }).skip((page - 1) * limit).limit(limit).populate('ownerId', OWNER_FIELDS).lean(),
+    ]);
+    items = boards;
   }
 
   const summaries = await memberSummaries(items.map((b) => b._id));
@@ -101,6 +114,9 @@ export async function listBoards(userId, { q, scope = 'all', page = 1, limit = 2
 }
 
 export async function createBoard(userId, title) {
+  if ((await BoardMember.countDocuments({ userId, role: 'owner' })) >= MAX_OWNED_BOARDS) {
+    throw new ApiError(403, 'LIMIT_REACHED', `You can own up to ${MAX_OWNED_BOARDS} boards. Delete one you no longer need first.`);
+  }
   const board = await Board.create({ title, ownerId: userId, lastModifiedBy: userId });
   try {
     await BoardMember.create({ boardId: board._id, userId, role: 'owner', lastOpenedAt: new Date() });
@@ -129,10 +145,20 @@ export async function renameBoard(boardId, userId, title) {
   return getBoard(boardId, userId, { touch: false });
 }
 
-export async function deleteBoard(boardId, userId) {
+/**
+ * Deletes a board and everything hanging off it. `beforeDelete` runs first (the controller stops the live room there so it
+ * stops writing). The Board document goes next: from then on no new sequence numbers can be allocated, so no new events
+ * can be recorded. Only then is the rest swept.
+ */
+export async function deleteBoard(boardId, userId, { beforeDelete } = {}) {
   await assertBoardRole(boardId, userId, 'owner');
+  beforeDelete?.();
+  await Board.deleteOne({ _id: boardId });
+  await sweepBoardData(boardId);
+}
+
+export async function sweepBoardData(boardId) {
   await Promise.all([
-    Board.deleteOne({ _id: boardId }),
     BoardMember.deleteMany({ boardId }),
     BoardSnapshot.deleteMany({ boardId }),
     BoardEvent.deleteMany({ boardId }),

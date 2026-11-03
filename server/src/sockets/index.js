@@ -226,6 +226,11 @@ export function initSockets(httpServer, { rooms, authenticate, getRole, corsOrig
       }
     },
 
+    /** Closes every live connection of one person (their password was reset); clients must sign in again. */
+    disconnectUser(userId) {
+      io.in(userRoom(userId)).disconnectSockets(true);
+    },
+
     /** Pushes a notification to every open tab/device of one person. */
     notifyUser(userId, payload) {
       io.to(userRoom(userId)).emit('notification:new', payload);

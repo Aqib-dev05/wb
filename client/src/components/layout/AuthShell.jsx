@@ -19,7 +19,7 @@ function BoardPreview() {
         <Cursor color="#5B4BFF" name="Maya" />
       </div>
       <div className="anim-drift-a absolute right-[16%] bottom-[24%]">
-        <Cursor color="#FF6B57" name="Jonas" />
+        <Cursor color="#C9382A" name="Jonas" />
       </div>
     </div>
   );

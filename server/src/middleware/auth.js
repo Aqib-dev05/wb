@@ -1,5 +1,4 @@
-import { User } from '../models/User.js';
-import { verifyAccessToken } from '../services/token.service.js';
+import { issuedBeforePasswordChange, verifyAccessToken } from '../services/token.service.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/http.js';
 
@@ -16,8 +15,10 @@ export const requireAuth = asyncHandler(async (req, _res, next) => {
     throw new ApiError(401, err.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'UNAUTHORIZED', 'Authentication required');
   }
 
-  const user = await User.findById(payload.sub);
+  const user = await req.app.locals.auth.store.findUserById(payload.sub);
   if (!user) throw ApiError.unauthorized();
+  // A password reset signs every device out, including access tokens that have not expired yet.
+  if (issuedBeforePasswordChange(payload, user)) throw ApiError.unauthorized();
   req.user = user;
   next();
 });

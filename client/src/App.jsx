@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from './components/ui/Toaster.jsx';
-import { LoginPage, RegisterPage } from './pages/AuthPages.jsx';
+import { ForgotPasswordPage, LoginPage, RegisterPage } from './pages/AuthPages.jsx';
 import { GuestRoute, ProtectedRoute } from './routes/guards.jsx';
 import { useAuthStore } from './store/authStore.js';
 
@@ -22,6 +22,7 @@ export default function App() {
           <Route element={<GuestRoute />}>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           </Route>
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<DashboardPage />} />

@@ -22,9 +22,11 @@ export const rename = asyncHandler(async (req, res) => {
 });
 
 export const remove = asyncHandler(async (req, res) => {
-  await boards.deleteBoard(req.params.id, req.user._id);
-  req.app.locals.rooms?.destroy(req.params.id);
-  req.app.locals.realtime?.closeBoard(req.params.id); // tell anyone still on the board
+  const id = req.params.id;
+  await boards.deleteBoard(id, req.user._id, { beforeDelete: () => req.app.locals.rooms?.destroy(id) });
+  req.app.locals.realtime?.closeBoard(id); // tell anyone still on the board
+  // A write that was already in flight when the board went away can land a moment later; sweep once more.
+  setTimeout(() => boards.sweepBoardData(id).catch((err) => console.error('Late board cleanup failed:', err)), 10_000).unref();
   return ok(res, { deleted: true });
 });
 

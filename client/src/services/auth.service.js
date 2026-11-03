@@ -16,5 +16,7 @@ export const authService = {
       setAccessToken(null);
     }
   },
+  forgotPassword: (email) => request('/auth/password/forgot', { method: 'POST', body: { email } }),
+  resetPassword: (payload) => request('/auth/password/reset', { method: 'POST', body: payload }),
   updateName: async (name) => (await request('/auth/me', { method: 'PATCH', body: { name } })).user,
 };

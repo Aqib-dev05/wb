@@ -1,7 +1,7 @@
 import { BoardMember } from '../models/BoardMember.js';
 import { User } from '../models/User.js';
 import { ApiError } from '../utils/ApiError.js';
-import { assertBoardRole, getMembership } from './board.service.js';
+import { MAX_MEMBERS_PER_BOARD, assertBoardRole, getMembership } from './board.service.js';
 
 const serialize = (m, user, showEmail) => ({
   userId: String(m.userId),
@@ -25,6 +25,7 @@ export async function addMember(boardId, ownerId, { email, role }) {
   const user = await User.findOne({ email });
   if (!user) throw ApiError.notFound('No CollabBoard account uses that email. Ask them to sign up first.');
   if (await BoardMember.exists({ boardId, userId: user._id })) throw ApiError.conflict(`${user.name} already has access to this board`);
+  if ((await BoardMember.countDocuments({ boardId })) >= MAX_MEMBERS_PER_BOARD) throw new ApiError(403, 'LIMIT_REACHED', `A board can have up to ${MAX_MEMBERS_PER_BOARD} people`);
   const member = await BoardMember.create({ boardId, userId: user._id, role });
   return serialize(member, user, true);
 }

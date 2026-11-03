@@ -6,7 +6,7 @@ import { BoardMember } from './models/BoardMember.js';
 import { User } from './models/User.js';
 import { RoomManager } from './services/room.service.js';
 import { mongoStore } from './services/room.store.mongo.js';
-import { verifyAccessToken } from './services/token.service.js';
+import { issuedBeforePasswordChange, verifyAccessToken } from './services/token.service.js';
 import { initSockets } from './sockets/index.js';
 
 async function main() {
@@ -30,8 +30,8 @@ async function main() {
       } catch (err) {
         throw Object.assign(new Error('auth'), { code: err.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'UNAUTHORIZED' });
       }
-      const user = await User.findById(payload.sub).select('name color').lean();
-      if (!user) throw Object.assign(new Error('auth'), { code: 'UNAUTHORIZED' });
+      const user = await User.findById(payload.sub).select('name color passwordChangedAt').lean();
+      if (!user || issuedBeforePasswordChange(payload, user)) throw Object.assign(new Error('auth'), { code: 'UNAUTHORIZED' });
       return { id: String(user._id), name: user.name, color: user.color };
     },
     async getRole(boardId, userId) {

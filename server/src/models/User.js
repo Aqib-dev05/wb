@@ -8,6 +8,9 @@ const refreshTokenSchema = new mongoose.Schema(
   {
     tokenHash: { type: String, required: true },
     expiresAt: { type: Date, required: true },
+    // Set when the token is exchanged for a new one. A short grace window tolerates two tabs refreshing at once;
+    // using it again after that means it was copied, and the whole account is signed out.
+    usedAt: { type: Date, default: null },
   },
   { _id: false }
 );
@@ -19,6 +22,8 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true, select: false },
     color: { type: String, default: USER_COLORS[0] },
     refreshTokens: { type: [refreshTokenSchema], default: [], select: false },
+    // Access tokens issued before this moment are rejected (password reset signs every device out).
+    passwordChangedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

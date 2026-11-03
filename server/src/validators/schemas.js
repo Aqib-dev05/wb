@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { passwordProblem } from './passwordPolicy.js';
 
 const req = (label) => ({ error: `${label} is required` });
 
@@ -7,13 +8,23 @@ const name = z.string(req('Name')).trim().min(2, 'Name must be at least 2 charac
 const password = z
   .string(req('Password'))
   .min(8, 'Password must be at least 8 characters')
-  .max(72, 'Password must be at most 72 characters') // bcrypt ignores bytes beyond 72
+  .max(128, 'Password is too long') // cheap cap before the byte-exact check below
   .regex(/[A-Za-z]/, 'Password must contain a letter')
   .regex(/\d/, 'Password must contain a number');
 const boardTitle = z.string(req('Title')).trim().min(1, 'Title is required').max(120);
 
-export const registerSchema = { body: z.object({ name, email, password }) };
+const checkedPassword = (data, ctx) => {
+  const problem = passwordProblem(data.password, data);
+  if (problem) ctx.addIssue({ code: 'custom', path: ['password'], message: problem });
+};
+export const registerSchema = { body: z.object({ name, email, password }).superRefine(checkedPassword) };
 export const loginSchema = { body: z.object({ email, password: z.string(req('Password')).min(1, 'Password is required') }) };
+export const forgotPasswordSchema = { body: z.object({ email }) };
+export const resetPasswordSchema = {
+  body: z
+    .object({ email, code: z.string(req('Code')).trim().regex(/^\d{6}$/, 'Enter the 6-digit code from the email'), password })
+    .superRefine(checkedPassword),
+};
 export const updateProfileSchema = { body: z.object({ name }) };
 
 export const objectIdParam = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid id');
