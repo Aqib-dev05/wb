@@ -2,6 +2,8 @@
 // httpOnly cookie the browser sends automatically. Expired access tokens are refreshed once,
 // transparently, and concurrent requests share a single refresh call.
 
+import { API_BASE } from '../config.js';
+
 export class ApiError extends Error {
   constructor(status, code, message, details) {
     super(message);
@@ -29,7 +31,7 @@ async function send(path, { method = 'GET', body, query } = {}) {
     : '';
   let res;
   try {
-    res = await fetch(`/api${path}${qs}`, {
+    res = await fetch(`${API_BASE}${path}${qs}`, {
       method,
       credentials: 'include',
       headers: {

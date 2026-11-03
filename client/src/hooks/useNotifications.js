@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { getAccessToken, refreshSession } from '../services/api.js';
+import { SOCKET_URL } from '../config.js';
 import { useNotificationStore } from '../store/notificationStore.js';
 import { useUiStore } from '../store/uiStore.js';
 
@@ -22,7 +23,7 @@ export function useNotifications(enabled) {
     const { load, receive, reset } = useNotificationStore.getState();
     load();
 
-    const socket = io({
+    const socket = io(SOCKET_URL, {
       auth: (cb) => cb({ token: getAccessToken() }),
       reconnectionDelayMax: 5000,
       transports: ['websocket', 'polling'],

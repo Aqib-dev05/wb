@@ -1,5 +1,6 @@
 import { io } from 'socket.io-client';
 import { getAccessToken, refreshSession } from '../services/api.js';
+import { SOCKET_URL } from '../config.js';
 
 const uid = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 const ACK_TIMEOUT_MS = 12_000;
@@ -52,7 +53,7 @@ export class SyncSession {
       controller.on('pointer', (p) => this.#sendCursor(p)),
     ];
 
-    this.socket = io({
+    this.socket = io(SOCKET_URL, {
       // Fresh token on every (re)connect attempt; the access token is short-lived.
       auth: (cb) => cb({ token: getAccessToken() }),
       reconnectionDelayMax: 4000,

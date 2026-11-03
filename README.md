@@ -19,6 +19,18 @@ cd client && npm install && npm run dev   # http://localhost:5173 (proxies /api 
 No local MongoDB? `npm run dev:memory` in `server/` starts the API on a throwaway in-memory database
 (it downloads a MongoDB binary on first run, so it needs internet access).
 
+## Client configuration
+
+The client has one setting, `VITE_API_URL` (see `client/.env.example`): the origin of the API server, e.g. `https://api.example.com`
+(no trailing slash, no `/api`). It is read in `client/src/config.js` and used for every REST call and both Socket.IO connections.
+Vite inlines it at **build** time, so changing it needs a rebuild.
+
+- **Empty (default):** same origin as the page. In development the Vite proxy forwards `/api` and `/socket.io` to the API
+  (`DEV_PROXY_TARGET`, default `http://localhost:5000`, read only by `vite.config.js`). In production a reverse proxy can do the same.
+- **Set:** the browser talks to that server directly. Set the server's `CLIENT_ORIGIN` to the app's origin (CORS, the origin guard and
+  Socket.IO all use it). The refresh cookie is `SameSite=Lax`, so the app and API must share a *site* (`app.example.com` +
+  `api.example.com` works; `*.vercel.app` + `*.onrender.com` does not: the cookie would not be sent and sessions would end on reload).
+
 ## API contract
 
 Success: `{ "success": true, "data": {...}, "meta"?: {...} }`
